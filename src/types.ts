@@ -11,7 +11,7 @@ export interface AgentConfig {
 
 export interface AgentRunRecord {
   id: string;
-  trigger: "cron" | "api" | "button" | "webhook";
+  trigger: "cron" | "api" | "button" | "webhook" | "dropped-lane";
   status: "running" | "completed" | "failed";
   input: string;
   output?: string;

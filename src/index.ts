@@ -8,6 +8,10 @@ import {
   saveAgentConfig,
 } from "./agent/store";
 import { TOOL_REGISTRY } from "./agent/tools";
+import {
+  parseDroppedLanePayload,
+  processDroppedLane,
+} from "./freight/dropped-lane";
 import type { AgentConfig, Env } from "./types";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -92,6 +96,42 @@ app.post("/api/webhook", async (c) => {
 
   const run = await executeAgentRun(c.env, "webhook", instructions);
   return c.json(run, run.status === "failed" ? 500 : 200);
+});
+
+app.post("/webhook/dropped-lane", async (c) => {
+  console.log("=== [DROPPED-LANE] Webhook received ===");
+
+  const secret = c.env.WEBHOOK_SECRET;
+  if (secret) {
+    const provided = c.req.header("x-webhook-secret");
+    if (provided !== secret) {
+      console.log("[DROPPED-LANE] Webhook auth failed");
+      return c.json({ error: "Unauthorized webhook" }, 401);
+    }
+    console.log("[DROPPED-LANE] Webhook auth passed");
+  }
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = parseDroppedLanePayload(raw);
+  if (!parsed.ok) {
+    console.log("[DROPPED-LANE] Validation failed:", parsed.error);
+    return c.json({ error: parsed.error }, 400);
+  }
+
+  const { lane_id, origin_zip, dest_zip } = parsed.data;
+  console.log("[DROPPED-LANE] Parsed lane:", { lane_id, origin_zip, dest_zip });
+  console.log("[DROPPED-LANE] Returning 200 OK to sender (non-blocking)");
+
+  c.executionCtx.waitUntil(
+    processDroppedLane(c.env, parsed.data).catch((err) => {
+      console.error("[DROPPED-LANE] Background agent run failed:", err);
+    }),
+  );
+
+  return c.json(
+    { ok: true, status: "processing", lane_id, origin_zip, dest_zip },
+    200,
+  );
 });
 
 async function handleScheduled(env: Env): Promise<void> {
