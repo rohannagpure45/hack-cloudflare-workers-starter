@@ -6,7 +6,12 @@ node_modules/
 .DS_Store
 /worker-configuration.d.ts
 
-# Nested repository/dependency artifacts from vendored source snapshots.
+# Optional local reference clones (see resources/README.md, scripts/fetch-resources.sh)
+/workers-sdk/
+/baseten-cli/
+/baseten-skills/
+
+# Nested repository/dependency artifacts from optional clones.
 **/.git/
 **/node_modules/
 **/.cache/

@@ -269,7 +269,19 @@ LLM         →  src/subconscious/      Subconscious client
 Tools       →  src/agent/tools.ts     ← add your tools here
 examples/shopping-assistant/         Track 1 example
 public/index.html                    Dashboard
+resources/                           optional offline SDK clones (not in git)
+scripts/fetch-resources.sh           clone Workers SDK / Baseten repos locally
 ```
+
+### Optional offline references
+
+This repo does **not** commit the full Cloudflare Workers SDK or Baseten trees (~5k files). To browse them locally:
+
+```bash
+./scripts/fetch-resources.sh
+```
+
+See [resources/README.md](./resources/README.md).
 
 ---
 
