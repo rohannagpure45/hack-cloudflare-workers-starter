@@ -13,15 +13,15 @@ Hackathon starter: **Cloudflare Workers + Subconscious API** for Wayfair agent c
 
 Build the **Freight Rate Spot Market Negotiator** for Wayfair supplier and procurement operations.
 
-The product story: a primary carrier drops a lane from a North Carolina supplier to a New Jersey fulfillment center. A Cloudflare Worker catches the dropped-lane event, provisions or triggers a Subconscious lane-recovery agent, calls Baseten for a fair-market baseline, fetches quotes from mock 3PL providers, negotiates toward the best rate, and either books automatically or asks a human logistics manager for approval.
+The product story: a primary carrier drops a lane from a North Carolina supplier to a New Jersey fulfillment center. A Cloudflare Worker catches the dropped-lane event, provisions or triggers a Subconscious lane-recovery agent, calls Baseten for a fair-market baseline, fetches quotes from mock 3PL providers, negotiates toward the best rate, and either books automatically or asks a human logistics manager for approval through a Slack App message.
 
-The demo should prove that a process normally handled through roughly three hours of procurement emails can complete in a few seconds with clear logs and an enterprise-safe approval path.
+The demo should prove that a process normally handled through roughly three hours of procurement emails can complete in a few seconds with clear logs and an enterprise-safe approval path. Do not build a separate UI as the main demo surface; the output is a Slack App webhook message with approval actions.
 
 ## Sponsor stack division of labor
 
 | Sponsor/tool | Project role |
 |--------------|--------------|
-| Cloudflare Workers | Webhook trigger, edge orchestration, mock 3PL APIs, approval callback, visible demo logs. |
+| Cloudflare Workers | Webhook trigger, edge orchestration, mock 3PL APIs, Slack approval callback, visible demo logs. |
 | Baseten | Baseline fair-market lane price service, implemented as a lightweight deployed model or sprint-safe mock call. |
 | Subconscious API | Negotiator brain that compares quotes, reasons about price versus delivery windows, drafts counter-offers, and decides whether to book or escalate. |
 
@@ -35,13 +35,15 @@ The demo should prove that a process normally handled through roughly three hour
 6. Counter-offer or select the best viable carrier.
 7. Auto-book only if the negotiated rate is within 10% of baseline.
 8. Request human approval if the best viable rate is materially above baseline, especially around 20% or more over baseline.
-9. Finalize or reject the booking through a mocked Slack/Teams approval callback.
+9. Send the operator-facing output as a Slack App webhook message, not a standalone UI.
+10. Finalize or reject the booking through a Slack approve/reject callback to the Worker.
 
 ## Demo-quality requirements
 
 - Add highly visible `console.log` statements for every step of the flow.
 - Keep mock APIs local-first unless deployment is required for the demo; ngrok is acceptable for connecting a deployed Worker to localhost.
-- Approval messages should include lane, carrier, quote, baseline, percent over baseline, delivery guarantee, and approve/reject actions.
+- Approval messages should be Slack App webhook payloads and should include lane, carrier, quote, baseline, percent over baseline, delivery guarantee, one-sentence rationale, and approve/reject actions.
+- Avoid building a dashboard UI unless explicitly requested later; Slack is the human-in-the-loop interface for this project.
 - Treat a pure autonomous blank checkbook as a compliance failure; always preserve the HITL threshold.
 - Optimize for an end-to-end 60-second recording over broad generic starter coverage.
 

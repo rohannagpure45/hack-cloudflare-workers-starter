@@ -31,8 +31,9 @@ When a carrier drops a shipping lane or hits a severe delay, Wayfair's supply ch
 3. **Baseten baseline:** the agent calls a Baseten-hosted model or sprint-safe mock endpoint to estimate the fair-market lane price, for example `$1,350`.
 4. **3PL quote tools:** the agent calls mock provider APIs such as XPO and Coyote to fetch spot-market quotes and transit windows.
 5. **Subconscious reasoning:** the agent compares total rate, percent over baseline, transit hours, and reliability constraints, then drafts a counter-offer or chooses the best viable carrier.
-6. **HITL guardrail:** if the negotiated rate is within 10% of baseline, the agent can book automatically. If the best available rate is materially above baseline, it sends a mocked Slack or Teams approval payload.
-7. **Resolution:** approval callbacks tell the Worker to finalize or reject the booking.
+6. **Slack App output:** there is no separate UI for the hackathon demo. The operator-facing surface is a Slack App message sent through an incoming webhook or mocked Slack webhook endpoint.
+7. **HITL guardrail:** if the negotiated rate is within 10% of baseline, the agent can book automatically. If the best available rate is materially above baseline, it sends a Slack approval message.
+8. **Resolution:** Slack approve/reject callbacks tell the Worker to finalize or reject the booking.
 
 ### Why it wins
 
@@ -40,7 +41,7 @@ The demo should show a procurement exception moving from route-drop telemetry to
 
 | Sponsor/tool | Demo role |
 |--------------|-----------|
-| Cloudflare Workers | Edge webhook, fast orchestration, approval callback, mock logistics APIs, visible execution logs. |
+| Cloudflare Workers | Edge webhook, fast orchestration, Slack approval callback, mock logistics APIs, visible execution logs. |
 | Baseten | Fair-market pricing model or simulated model call used as the negotiation baseline. |
 | Subconscious API | Negotiator agent that evaluates quotes, reasons about trade-offs, counters, and escalates when needed. |
 
@@ -54,7 +55,22 @@ Do not let the agent spend without limits.
 | Best viable rate is around 20% or more over baseline | Request manager approval before booking. |
 | No carrier can meet the delivery window | Escalate with quote details and recommended fallback. |
 
-Approval payloads should include the lane, carrier, quoted rate, baseline, percent over baseline, delivery commitment, and approve/reject actions.
+Slack approval payloads should include the lane, carrier, quoted rate, baseline, percent over baseline, delivery commitment, and approve/reject actions.
+
+### Demo output: Slack App webhook
+
+Do not build a standalone dashboard UI for the primary demo path. The visible output should be a Slack App message that acts as the logistics manager's command center.
+
+The Slack message should be sent through a Slack incoming webhook in production-style demos, with a local/mock webhook acceptable during development. It should include:
+
+- Dropped lane summary, for example `NC supplier -> NJ fulfillment center`.
+- Best carrier recommendation and negotiated spot rate.
+- Baseten fair-market baseline and percent over baseline.
+- Delivery guarantee or estimated transit window.
+- Agent rationale in one concise sentence.
+- `Approve` and `Reject` actions that call back into the Cloudflare Worker.
+
+This keeps the workflow enterprise-realistic: Cloudflare handles the event and callback, Baseten supplies the pricing baseline, Subconscious negotiates, and Slack is the human-in-the-loop approval surface.
 
 ### 60-second demo structure
 
@@ -63,7 +79,7 @@ Approval payloads should include the lane, carrier, quoted rate, baseline, perce
 | 0:00-0:10 | State the problem: dropped freight lanes create urgent spot-market procurement work. |
 | 0:10-0:25 | Trigger the dropped route and show Cloudflare Worker logs catching the webhook. |
 | 0:25-0:40 | Show Baseten returning a baseline and Subconscious comparing mock 3PL quotes. |
-| 0:40-0:50 | Show HITL approval when rates exceed the spend threshold. |
+| 0:40-0:50 | Show the Slack App HITL message when rates exceed the spend threshold. |
 | 0:50-1:00 | Finalize the booking and summarize the savings in time and margin. |
 
 ---
@@ -227,7 +243,8 @@ For this hackathon build, prioritize these pieces in order:
 2. Mock 3PL quote tools for XPO and Coyote with price plus transit hours.
 3. Baseten baseline price tool, real if available and simulated if needed.
 4. Subconscious prompt and tool definitions for quote comparison, counter-offer drafting, and booking decisions.
-5. HITL approval callback for above-threshold spend.
+5. Slack App webhook message for the operator-facing output.
+6. HITL approval callback for above-threshold spend.
 
 ### 1. Trigger — when does it run?
 
