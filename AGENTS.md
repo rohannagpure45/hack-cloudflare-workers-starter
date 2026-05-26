@@ -2,6 +2,49 @@
 
 Hackathon starter: **Cloudflare Workers + Subconscious API** for Wayfair agent challenges.
 
+## Repository root
+
+- **Git root = workspace root.** All product changes go here (`src/`, `wrangler.toml`, etc.), not in a nested folder.
+- **Remote:** `https://github.com/rohannagpure45/hack-cloudflare-workers-starter.git`
+- Before `git push`, run `./scripts/verify-git-remote.sh`.
+- `local/` is gitignored scratch space only.
+
+## Current project target
+
+Build the **Freight Rate Spot Market Negotiator** for Wayfair supplier and procurement operations.
+
+The product story: a primary carrier drops a lane from a North Carolina supplier to a New Jersey fulfillment center. A Cloudflare Worker catches the dropped-lane event, provisions or triggers a Subconscious lane-recovery agent, calls Baseten for a fair-market baseline, fetches quotes from mock 3PL providers, negotiates toward the best rate, and either books automatically or asks a human logistics manager for approval.
+
+The demo should prove that a process normally handled through roughly three hours of procurement emails can complete in a few seconds with clear logs and an enterprise-safe approval path.
+
+## Sponsor stack division of labor
+
+| Sponsor/tool | Project role |
+|--------------|--------------|
+| Cloudflare Workers | Webhook trigger, edge orchestration, mock 3PL APIs, approval callback, visible demo logs. |
+| Baseten | Baseline fair-market lane price service, implemented as a lightweight deployed model or sprint-safe mock call. |
+| Subconscious API | Negotiator brain that compares quotes, reasons about price versus delivery windows, drafts counter-offers, and decides whether to book or escalate. |
+
+## Freight recovery workflow
+
+1. Trigger a dropped-lane webhook with `lane_id`, `origin_zip`, `dest_zip`, supplier, fulfillment center, shipment weight, and delivery deadline.
+2. Return `200 OK` quickly to the telemetry sender while the Worker starts the recovery flow.
+3. Fetch the Baseten fair-market baseline for the lane.
+4. Call mock 3PL quote APIs such as XPO and Coyote.
+5. Let Subconscious compare rate, transit time, and baseline delta.
+6. Counter-offer or select the best viable carrier.
+7. Auto-book only if the negotiated rate is within 10% of baseline.
+8. Request human approval if the best viable rate is materially above baseline, especially around 20% or more over baseline.
+9. Finalize or reject the booking through a mocked Slack/Teams approval callback.
+
+## Demo-quality requirements
+
+- Add highly visible `console.log` statements for every step of the flow.
+- Keep mock APIs local-first unless deployment is required for the demo; ngrok is acceptable for connecting a deployed Worker to localhost.
+- Approval messages should include lane, carrier, quote, baseline, percent over baseline, delivery guarantee, and approve/reject actions.
+- Treat a pure autonomous blank checkbook as a compliance failure; always preserve the HITL threshold.
+- Optimize for an end-to-end 60-second recording over broad generic starter coverage.
+
 ## Tracks
 
 1. **Consumer shopping** — discovery, recommendations, buyer experience
@@ -48,6 +91,7 @@ Track 1 shopping assistant: `examples/shopping-assistant/` — run with `bash ex
 | Add tools (main hackathon work) | `src/agent/tools.ts` |
 | New routes or triggers | `src/index.ts` |
 | Cron schedule | `wrangler.toml` |
+| Baseten Qwen deployment config | `qwen-2.5-3b/config.yaml` |
 
 ## Env vars
 
@@ -70,3 +114,23 @@ Track 1 shopping assistant: `examples/shopping-assistant/` — run with `bash ex
 - Tools are client-side — Worker executes them, not Subconscious
 
 Full API details: `.agents/skills/subconscious-dev/SKILL.md`
+
+## Baseten Qwen 2.5 3B deployment
+
+Use `qwen-2.5-3b/config.yaml` to deploy `Qwen/Qwen2.5-3B-Instruct` to Baseten:
+
+```bash
+cd qwen-2.5-3b
+truss push
+```
+
+Config summary:
+
+- `model_name: Qwen-2.5-3B`
+- `resources.accelerator: L4` for 24 GB VRAM inference.
+- `model_metadata.tags: [openai-compatible]`.
+- `trt_llm.build` uses Baseten Engine-Builder-LLM / TensorRT-LLM.
+- `checkpoint_repository.repo: Qwen/Qwen2.5-3B-Instruct`; the Hugging Face repo is ungated.
+- `max_seq_len: 8192`, `quantization_type: fp8`, `tensor_parallel_count: 1`.
+
+After `truss push`, the Baseten logs URL contains the model ID after `/models/`, for example `https://app.baseten.co/models/abc1d2ef/logs/xyz123` has model ID `abc1d2ef`. Wait for the deployment to show `Active` in the Baseten dashboard before calling it.

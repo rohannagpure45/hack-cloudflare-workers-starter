@@ -1,8 +1,70 @@
 # Wayfair × Subconscious Hackathon Starter
 
+**Repository (canonical):** [github.com/rohannagpure45/hack-cloudflare-workers-starter](https://github.com/rohannagpure45/hack-cloudflare-workers-starter)
+
+Clone and work from the **repository root** (this folder). There is no nested `hack-cloudflare-workers-starter/` directory — if you see one, delete it and re-clone.
+
+```bash
+git clone https://github.com/rohannagpure45/hack-cloudflare-workers-starter.git
+cd hack-cloudflare-workers-starter
+./scripts/verify-git-remote.sh   # confirms origin before you push
+```
+
 Build an AI agent on **Cloudflare Workers** powered by the [Subconscious API](https://docs.subconscious.dev).
 
 This repo gives you all four pieces wired together — so you can focus on the problem, not the plumbing.
+
+---
+
+## Hackathon build: Freight Rate Spot Market Negotiator
+
+This project is focused on the **Supplier / Procurement Ops** track: autonomous freight lane recovery when a primary carrier drops a route.
+
+### Problem
+
+When a carrier drops a shipping lane or hits a severe delay, Wayfair's supply chain ops team has to enter the freight spot market manually. In practice, that means urgent emails and calls with 3PL freight brokers asking who can move the shipment, when they can pick it up, and what rate they will charge. The delay costs time, margin, and operational focus.
+
+### Agent workflow
+
+1. **Trigger:** a mock telemetry webhook reports a dropped route from a North Carolina supplier to a New Jersey fulfillment center.
+2. **Cloudflare Worker:** `POST /webhook/dropped-lane` receives the event, logs it, returns quickly to the sender, and starts the lane recovery flow.
+3. **Baseten baseline:** the agent calls a Baseten-hosted model or sprint-safe mock endpoint to estimate the fair-market lane price, for example `$1,350`.
+4. **3PL quote tools:** the agent calls mock provider APIs such as XPO and Coyote to fetch spot-market quotes and transit windows.
+5. **Subconscious reasoning:** the agent compares total rate, percent over baseline, transit hours, and reliability constraints, then drafts a counter-offer or chooses the best viable carrier.
+6. **HITL guardrail:** if the negotiated rate is within 10% of baseline, the agent can book automatically. If the best available rate is materially above baseline, it sends a mocked Slack or Teams approval payload.
+7. **Resolution:** approval callbacks tell the Worker to finalize or reject the booking.
+
+### Why it wins
+
+The demo should show a procurement exception moving from route-drop telemetry to negotiated recovery in seconds instead of roughly three hours of manual email back-and-forth. It uses all three sponsor systems in a way that maps cleanly to the real enterprise workflow:
+
+| Sponsor/tool | Demo role |
+|--------------|-----------|
+| Cloudflare Workers | Edge webhook, fast orchestration, approval callback, mock logistics APIs, visible execution logs. |
+| Baseten | Fair-market pricing model or simulated model call used as the negotiation baseline. |
+| Subconscious API | Negotiator agent that evaluates quotes, reasons about trade-offs, counters, and escalates when needed. |
+
+### Human-in-the-loop rule
+
+Do not let the agent spend without limits.
+
+| Condition | Agent action |
+|-----------|--------------|
+| Negotiated rate is within 10% of historical or predicted baseline | Book automatically and log the decision. |
+| Best viable rate is around 20% or more over baseline | Request manager approval before booking. |
+| No carrier can meet the delivery window | Escalate with quote details and recommended fallback. |
+
+Approval payloads should include the lane, carrier, quoted rate, baseline, percent over baseline, delivery commitment, and approve/reject actions.
+
+### 60-second demo structure
+
+| Time | Beat |
+|------|------|
+| 0:00-0:10 | State the problem: dropped freight lanes create urgent spot-market procurement work. |
+| 0:10-0:25 | Trigger the dropped route and show Cloudflare Worker logs catching the webhook. |
+| 0:25-0:40 | Show Baseten returning a baseline and Subconscious comparing mock 3PL quotes. |
+| 0:40-0:50 | Show HITL approval when rates exceed the spend threshold. |
+| 0:50-1:00 | Finalize the booking and summarize the savings in time and margin. |
 
 ---
 
@@ -56,6 +118,7 @@ Hundreds of thousands of furniture pieces ship worldwide through Wayfair and its
 **Challenge:** Build an agent that improves Wayfair's ability to manage its supply chain.
 
 **Starter ideas:**
+- Freight spot-market negotiator — webhook on dropped carrier lane → agent fetches 3PL quotes, compares against Baseten fair-market baseline, negotiates, and books or escalates
 - Delay triage — webhook on shipment exception → agent summarizes impact and suggests next steps
 - Supplier monitor — cron checks status feeds → agent logs anomalies and priorities
 - Route advisor — agent uses tools to compare options and recommend reroutes or escalations
@@ -157,6 +220,14 @@ sub
 ## Build your agent
 
 Work through the four parts:
+
+For this hackathon build, prioritize these pieces in order:
+
+1. `POST /webhook/dropped-lane` for the telemetry trigger.
+2. Mock 3PL quote tools for XPO and Coyote with price plus transit hours.
+3. Baseten baseline price tool, real if available and simulated if needed.
+4. Subconscious prompt and tool definitions for quote comparison, counter-offer drafting, and booking decisions.
+5. HITL approval callback for above-threshold spend.
 
 ### 1. Trigger — when does it run?
 
@@ -307,6 +378,53 @@ Already bundled at `.agents/skills/subconscious-dev/`. See [AGENTS.md](./AGENTS.
 | Tools | Client-side ReAct loop — **your Worker runs them** (see [hack-cli-starter](https://github.com/subconscious-systems/subconscious/tree/main/examples/hack-cli-starter)) |
 
 Docs: [docs.subconscious.dev](https://docs.subconscious.dev) · Playground: [subconscious.dev/playground](https://www.subconscious.dev/playground)
+
+---
+
+## Baseten Qwen deployment
+
+This repo includes a Baseten Truss config for deploying `Qwen/Qwen2.5-3B-Instruct` as an OpenAI-compatible TRT-LLM deployment:
+
+```bash
+cd qwen-2.5-3b
+truss push
+```
+
+The config lives at [qwen-2.5-3b/config.yaml](./qwen-2.5-3b/config.yaml):
+
+```yaml
+model_name: Qwen-2.5-3B
+resources:
+  accelerator: L4
+model_metadata:
+  tags:
+    - openai-compatible
+trt_llm:
+  build:
+    base_model: decoder
+    checkpoint_repository:
+      source: HF
+      repo: "Qwen/Qwen2.5-3B-Instruct"
+    max_seq_len: 8192
+    quantization_type: fp8
+    tensor_parallel_count: 1
+```
+
+What each section does:
+
+- `resources.accelerator: L4` selects an L4 GPU with 24 GB VRAM for inference.
+- `trt_llm` uses Baseten Engine-Builder-LLM / TensorRT-LLM to compile the model for optimized inference.
+- `checkpoint_repository` pulls the ungated Hugging Face weights from `Qwen/Qwen2.5-3B-Instruct`; no HF token is needed.
+- `quantization_type: fp8` compresses weights to 8-bit floating point to reduce memory usage with minimal quality impact.
+- `model_metadata.tags: [openai-compatible]` marks the deployment for OpenAI-compatible usage.
+
+After `truss push`, Baseten prints a logs URL like:
+
+```text
+https://app.baseten.co/models/abc1d2ef/logs/xyz123
+```
+
+The model ID is the segment after `/models/` (`abc1d2ef` in this example). Use that ID when calling the model API. Wait until the deployment status is `Active` in the Baseten dashboard before sending requests.
 
 ---
 

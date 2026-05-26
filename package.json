@@ -7,7 +7,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "types": "wrangler types",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "verify:git": "./scripts/verify-git-remote.sh",
+    "prepush": "npm run verify:git"
   },
   "dependencies": {
     "hono": "^4.7.10",

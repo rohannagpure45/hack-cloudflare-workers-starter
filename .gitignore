@@ -6,6 +6,12 @@ node_modules/
 .DS_Store
 /worker-configuration.d.ts
 
+# Local-only experiments (notebooks, scratch) — not published to GitHub
+/local/
+
+# Accidental nested clone of this same repo (open the parent folder instead)
+/hack-cloudflare-workers-starter/
+
 # Optional local reference clones (see resources/README.md, scripts/fetch-resources.sh)
 /workers-sdk/
 /baseten-cli/

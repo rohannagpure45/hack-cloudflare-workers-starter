@@ -1,0 +1,11 @@
+---
+description: Keep edits and git operations on the canonical hack-cloudflare-workers-starter repo root
+globs: "**/*"
+alwaysApply: true
+---
+
+- **This workspace root is the git repository.** Do not create or edit a nested `hack-cloudflare-workers-starter/` copy.
+- **Canonical remote:** `https://github.com/rohannagpure45/hack-cloudflare-workers-starter.git` — run `./scripts/verify-git-remote.sh` before `git push`.
+- **Product code** belongs at repo root: `src/`, `wrangler.toml`, `package.json`, `examples/`, `qwen-2.5-3b/`.
+- **`local/` is gitignored** — notebooks and scratch work only; never commit from there.
+- **Optional SDK clones** live at repo root as `workers-sdk/`, `baseten-cli/`, `baseten-skills/` via `./scripts/fetch-resources.sh` (gitignored).

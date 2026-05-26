@@ -1,0 +1,19 @@
+model_metadata:
+  tags:
+  - openai-compatible
+model_name: Qwen-2.5-3B
+python_version: py313
+resources:
+  accelerator: L4
+  cpu: '1'
+  memory: 10Gi
+  use_gpu: true
+trt_llm:
+  build:
+    base_model: decoder
+    checkpoint_repository:
+      repo: Qwen/Qwen2.5-3B-Instruct
+      source: HF
+    max_seq_len: 8192
+    quantization_type: fp8
+    tensor_parallel_count: 1
