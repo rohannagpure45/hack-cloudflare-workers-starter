@@ -381,19 +381,19 @@ Docs: [docs.subconscious.dev](https://docs.subconscious.dev) · Playground: [sub
 
 ---
 
-## Baseten Qwen deployment
+## Baseten Qwen3 deployment
 
-This repo includes a Baseten Truss config for deploying `Qwen/Qwen2.5-3B-Instruct` as an OpenAI-compatible TRT-LLM deployment:
+This repo includes a Baseten Truss config for deploying `Qwen/Qwen3-4B-Instruct-2507` as an OpenAI-compatible TRT-LLM deployment. This is the current small official Qwen3 target for the hackathon; there was no official `Qwen3.5-3B` checkpoint available when this config was added.
 
 ```bash
-cd qwen-2.5-3b
+cd qwen-3-4b-instruct-2507
 truss push
 ```
 
-The config lives at [qwen-2.5-3b/config.yaml](./qwen-2.5-3b/config.yaml):
+The config lives at [qwen-3-4b-instruct-2507/config.yaml](./qwen-3-4b-instruct-2507/config.yaml):
 
 ```yaml
-model_name: Qwen-2.5-3B
+model_name: Qwen3-4B-Instruct-2507
 resources:
   accelerator: L4
 model_metadata:
@@ -404,7 +404,7 @@ trt_llm:
     base_model: decoder
     checkpoint_repository:
       source: HF
-      repo: "Qwen/Qwen2.5-3B-Instruct"
+      repo: "Qwen/Qwen3-4B-Instruct-2507"
     max_seq_len: 8192
     quantization_type: fp8
     tensor_parallel_count: 1
@@ -414,7 +414,7 @@ What each section does:
 
 - `resources.accelerator: L4` selects an L4 GPU with 24 GB VRAM for inference.
 - `trt_llm` uses Baseten Engine-Builder-LLM / TensorRT-LLM to compile the model for optimized inference.
-- `checkpoint_repository` pulls the ungated Hugging Face weights from `Qwen/Qwen2.5-3B-Instruct`; no HF token is needed.
+- `checkpoint_repository` pulls the ungated Hugging Face weights from `Qwen/Qwen3-4B-Instruct-2507`; no HF token is needed.
 - `quantization_type: fp8` compresses weights to 8-bit floating point to reduce memory usage with minimal quality impact.
 - `model_metadata.tags: [openai-compatible]` marks the deployment for OpenAI-compatible usage.
 

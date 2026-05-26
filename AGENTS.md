@@ -91,7 +91,7 @@ Track 1 shopping assistant: `examples/shopping-assistant/` — run with `bash ex
 | Add tools (main hackathon work) | `src/agent/tools.ts` |
 | New routes or triggers | `src/index.ts` |
 | Cron schedule | `wrangler.toml` |
-| Baseten Qwen deployment config | `qwen-2.5-3b/config.yaml` |
+| Baseten Qwen deployment config | `qwen-3-4b-instruct-2507/config.yaml` |
 
 ## Env vars
 
@@ -115,22 +115,22 @@ Track 1 shopping assistant: `examples/shopping-assistant/` — run with `bash ex
 
 Full API details: `.agents/skills/subconscious-dev/SKILL.md`
 
-## Baseten Qwen 2.5 3B deployment
+## Baseten Qwen3 4B deployment
 
-Use `qwen-2.5-3b/config.yaml` to deploy `Qwen/Qwen2.5-3B-Instruct` to Baseten:
+Use `qwen-3-4b-instruct-2507/config.yaml` to deploy `Qwen/Qwen3-4B-Instruct-2507` to Baseten. This is the current small official Qwen3 target for this project; no official `Qwen3.5-3B` checkpoint was available when this config was added.
 
 ```bash
-cd qwen-2.5-3b
+cd qwen-3-4b-instruct-2507
 truss push
 ```
 
 Config summary:
 
-- `model_name: Qwen-2.5-3B`
+- `model_name: Qwen3-4B-Instruct-2507`
 - `resources.accelerator: L4` for 24 GB VRAM inference.
 - `model_metadata.tags: [openai-compatible]`.
 - `trt_llm.build` uses Baseten Engine-Builder-LLM / TensorRT-LLM.
-- `checkpoint_repository.repo: Qwen/Qwen2.5-3B-Instruct`; the Hugging Face repo is ungated.
+- `checkpoint_repository.repo: Qwen/Qwen3-4B-Instruct-2507`; the Hugging Face repo is ungated.
 - `max_seq_len: 8192`, `quantization_type: fp8`, `tensor_parallel_count: 1`.
 
 After `truss push`, the Baseten logs URL contains the model ID after `/models/`, for example `https://app.baseten.co/models/abc1d2ef/logs/xyz123` has model ID `abc1d2ef`. Wait for the deployment to show `Active` in the Baseten dashboard before calling it.
