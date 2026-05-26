@@ -2,10 +2,309 @@ export interface ToolDefinition {
   name: string;
   description: string;
   parameters: Record<string, unknown>;
-  execute: (args: Record<string, unknown>) => Promise<unknown> | unknown;
+  execute: (
+    args: Record<string, unknown>,
+    context?: ToolExecutionContext,
+  ) => Promise<unknown> | unknown;
+}
+
+export interface ToolExecutionContext {
+  mock3plBaseUrl?: string;
+  slackWebhookUrl?: string;
+  approvalBaseUrl?: string;
+}
+
+interface FreightQuote {
+  carrier: string;
+  origin: string;
+  destination: string;
+  quote_price: number;
+  estimated_transit_hours: number;
+  currency?: string;
+  quote_id?: string;
+}
+
+const SPOT_RATE_THRESHOLD_USD = 1500;
+const DEFAULT_MOCK_3PL_BASE_URL = "http://localhost:3000";
+const DEFAULT_APPROVAL_BASE_URL = "https://my-worker.workers.dev";
+
+function readNodeEnv(name: string): string | undefined {
+  const processLike = (globalThis as {
+    process?: { env?: Record<string, string | undefined> };
+  }).process;
+  return processLike?.env?.[name];
+}
+
+function requireString(args: Record<string, unknown>, key: string): string {
+  const value = args[key];
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`${key} is required and must be a non-empty string`);
+  }
+  return value.trim();
+}
+
+function optionalString(args: Record<string, unknown>, key: string): string | undefined {
+  const value = args[key];
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+}
+
+function requireFiniteNumber(args: Record<string, unknown>, key: string): number {
+  const raw = args[key];
+  const value = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(value)) {
+    throw new Error(`${key} is required and must be a finite number`);
+  }
+  return value;
+}
+
+function formatUsd(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+async function fetchProviderQuote(
+  baseUrl: string,
+  endpoint: string,
+  origin: string,
+  destination: string,
+): Promise<FreightQuote> {
+  const response = await fetch(`${baseUrl}${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ origin, destination }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`3PL quote request failed (${response.status}): ${body}`);
+  }
+
+  return (await response.json()) as FreightQuote;
+}
+
+function buildSlackApprovalPayload(input: {
+  laneId?: string;
+  origin: string;
+  destination: string;
+  carrierName: string;
+  price: number;
+  estimatedTransitHours?: number;
+  quoteId?: string;
+  approvalBaseUrl: string;
+}): Record<string, unknown> {
+  const details = [
+    { type: "mrkdwn", text: `*Origin*\n${input.origin}` },
+    { type: "mrkdwn", text: `*Destination*\n${input.destination}` },
+    {
+      type: "mrkdwn",
+      text: `*Carrier*\n${input.carrierName}`,
+    },
+    {
+      type: "mrkdwn",
+      text: `*Price*\n${formatUsd(input.price)}`,
+    },
+  ];
+
+  if (input.estimatedTransitHours !== undefined) {
+    details.push({
+      type: "mrkdwn",
+      text: `*Transit Window*\n${input.estimatedTransitHours} hours`,
+    });
+  }
+
+  if (input.laneId) {
+    details.push({ type: "mrkdwn", text: `*Lane ID*\n${input.laneId}` });
+  }
+
+  if (input.quoteId) {
+    details.push({ type: "mrkdwn", text: `*Quote ID*\n${input.quoteId}` });
+  }
+
+  return {
+    text: "🚨 Human Override Required: Spot Market Exception",
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "🚨 Human Override Required: Spot Market Exception",
+          emoji: true,
+        },
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*Best available spot-market rate is above the $1,500 autonomous booking limit.*",
+        },
+      },
+      {
+        type: "section",
+        fields: details,
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "Approve", emoji: true },
+            style: "primary",
+            url: `${input.approvalBaseUrl}/approve`,
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "Reject", emoji: true },
+            style: "danger",
+            url: `${input.approvalBaseUrl}/reject`,
+          },
+        ],
+      },
+    ],
+  };
 }
 
 export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
+  fetch_quotes: {
+    name: "fetch_quotes",
+    description:
+      "Fetch freight spot-market quotes from mock 3PL providers XPO and Coyote for one origin/destination lane.",
+    parameters: {
+      type: "object",
+      properties: {
+        lane_id: { type: "string", description: "Optional dropped lane identifier" },
+        origin: { type: "string", description: "Origin ZIP code" },
+        destination: { type: "string", description: "Destination ZIP code" },
+      },
+      required: ["origin", "destination"],
+    },
+    execute: async (args, context) => {
+      const laneId = optionalString(args, "lane_id");
+      const origin = requireString(args, "origin");
+      const destination = requireString(args, "destination");
+      const baseUrl =
+        context?.mock3plBaseUrl ??
+        readNodeEnv("MOCK_3PL_BASE_URL") ??
+        DEFAULT_MOCK_3PL_BASE_URL;
+
+      console.log("[FREIGHT] Fetching XPO and Coyote spot quotes", {
+        laneId,
+        origin,
+        destination,
+        baseUrl,
+      });
+
+      const quotes = await Promise.all([
+        fetchProviderQuote(baseUrl, "/api/3pl/xpo", origin, destination),
+        fetchProviderQuote(baseUrl, "/api/3pl/coyote", origin, destination),
+      ]);
+
+      const bestQuote = [...quotes].sort(
+        (a, b) => a.quote_price - b.quote_price,
+      )[0];
+
+      return {
+        lane_id: laneId,
+        origin,
+        destination,
+        threshold_usd: SPOT_RATE_THRESHOLD_USD,
+        quotes,
+        best_quote: bestQuote,
+        requires_human_approval:
+          bestQuote.quote_price > SPOT_RATE_THRESHOLD_USD,
+      };
+    },
+  },
+
+  request_human_approval: {
+    name: "request_human_approval",
+    description:
+      "Send a Slack Block Kit approval alert when the best freight spot quote is over $1500.",
+    parameters: {
+      type: "object",
+      properties: {
+        lane_id: { type: "string", description: "Optional dropped lane identifier" },
+        origin: { type: "string", description: "Origin ZIP code" },
+        destination: { type: "string", description: "Destination ZIP code" },
+        carrier_name: {
+          type: "string",
+          description: "Carrier name for the best quote",
+        },
+        price: { type: "number", description: "Best quote price in USD" },
+        estimated_transit_hours: {
+          type: "number",
+          description: "Estimated transit time in hours",
+        },
+        quote_id: {
+          type: "string",
+          description: "Optional provider quote identifier",
+        },
+      },
+      required: ["origin", "destination", "carrier_name", "price"],
+    },
+    execute: async (args, context) => {
+      const origin = requireString(args, "origin");
+      const destination = requireString(args, "destination");
+      const carrierName = requireString(args, "carrier_name");
+      const price = requireFiniteNumber(args, "price");
+      const estimatedTransitRaw = args.estimated_transit_hours;
+      const estimatedTransitHours =
+        estimatedTransitRaw === undefined
+          ? undefined
+          : requireFiniteNumber(args, "estimated_transit_hours");
+      const laneId = optionalString(args, "lane_id");
+      const quoteId = optionalString(args, "quote_id");
+      const approvalBaseUrl =
+        context?.approvalBaseUrl ??
+        readNodeEnv("APPROVAL_BASE_URL") ??
+        DEFAULT_APPROVAL_BASE_URL;
+      const payload = buildSlackApprovalPayload({
+        laneId,
+        origin,
+        destination,
+        carrierName,
+        price,
+        estimatedTransitHours,
+        quoteId,
+        approvalBaseUrl,
+      });
+      const webhookUrl =
+        context?.slackWebhookUrl ?? readNodeEnv("SLACK_WEBHOOK_URL");
+
+      if (webhookUrl) {
+        const response = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(`Slack webhook failed (${response.status}): ${body}`);
+        }
+      } else {
+        console.log("[SLACK] SLACK_WEBHOOK_URL is not set; mock payload follows:");
+        console.log(JSON.stringify(payload, null, 2));
+      }
+
+      console.log("Waiting for human approval...");
+
+      return {
+        sent: Boolean(webhookUrl),
+        waiting_for_human_approval: true,
+        approval_urls: {
+          approve: `${approvalBaseUrl}/approve`,
+          reject: `${approvalBaseUrl}/reject`,
+        },
+        slack_payload: webhookUrl ? undefined : payload,
+      };
+    },
+  },
+
   get_time: {
     name: "get_time",
     description: "Get the current UTC date and time",
@@ -165,6 +464,7 @@ export function getEnabledTools(enabledTools: string[]): ToolDefinition[] {
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
+  context?: ToolExecutionContext,
 ): Promise<string> {
   const tool = TOOL_REGISTRY[name];
   if (!tool) {
@@ -172,7 +472,7 @@ export async function executeTool(
   }
 
   try {
-    const result = await tool.execute(args);
+    const result = await tool.execute(args, context);
     return JSON.stringify(result);
   } catch (error) {
     return JSON.stringify({

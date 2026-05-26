@@ -16,10 +16,10 @@ See also: [AGENTS.md](../AGENTS.md), [INTEGRATION.md](./INTEGRATION.md).
 | Starter agent tools | **Done** | `get_time`, `log_note`, `search_catalog`, `fetch_url` |
 | Generic API + webhook | **Done** | `/api/*`, `POST /api/webhook` |
 | Dropped-lane telemetry trigger | **Done** | `POST /webhook/dropped-lane`, `waitUntil`, demo logs |
-| Mock 3PL environment | **Partial** | Local Express server for XPO/Coyote exists; agent tools not wired yet |
+| Mock 3PL environment | **Done** | Local Express server for XPO/Coyote exists and `fetch_quotes` calls both providers |
 | Baseten baseline tool | **Not started** | Config exists; not wired to agent |
-| Freight agent prompt + tool enablement | **Partial** | Instructions in dropped-lane only; default config still shopping-oriented |
-| Slack HITL message | **Not started** | Env placeholders in `.dev.vars.example` only |
+| Freight agent prompt + tool enablement | **Done** | Default config uses freight negotiator prompt with `fetch_quotes` and `request_human_approval` |
+| Slack HITL message | **Partial** | `request_human_approval` sends or prints Block Kit payload; callbacks still pending |
 | Slack approve/reject callback | **Not started** | — |
 | End-to-end demo polish | **Not started** | 60s recording script |
 
@@ -69,10 +69,10 @@ flowchart LR
 
 | Priority | Item | Target files | Acceptance criteria |
 |----------|------|--------------|---------------------|
-| **P1** | Mock 3PL quote tools (XPO, Coyote) | `scripts/mock-3pl-server.mjs`, `src/agent/tools.ts`, optional `src/freight/providers/` | Local Express endpoints return `{ carrier, quote_price, estimated_transit_hours }`; agent tools call the endpoints |
+| **P1** | Mock 3PL quote tools (XPO, Coyote) | `scripts/mock-3pl-server.mjs`, `src/agent/tools.ts`, `scripts/run-freight-agent.mjs` | Local Express endpoints return `{ carrier, quote_price, estimated_transit_hours }`; `fetch_quotes` calls both endpoints |
 | **P2** | Baseten baseline tool | `src/agent/tools.ts`, optional `src/baseten/baseline.ts` | Fair-market USD baseline; real Baseten if `BASETEN_API_KEY` + model ID set, else sprint-safe mock |
-| **P3** | Freight agent config | `src/types.ts` `DEFAULT_AGENT_CONFIG`, `src/agent/prompt.ts` | Enable freight tools; system prompt describes **10%** auto-book / **~20%** HITL escalation |
-| **P4** | Slack operator message | e.g. `src/slack/notify.ts` | Incoming webhook payload: lane, carrier, quote, baseline, % over baseline, delivery guarantee, rationale, approve/reject actions |
+| **P3** | Freight agent config | `src/types.ts` `DEFAULT_AGENT_CONFIG`, `src/agent/prompt.ts` | Enable freight tools; system prompt targets cheapest alternative rate under `$1500` |
+| **P4** | Slack operator message | `src/agent/tools.ts`, `scripts/run-freight-agent.mjs` | Incoming webhook payload: lane, carrier, quote, transit hours, approve/reject URL actions |
 | **P5** | Slack approve/reject callback | `src/index.ts` e.g. `POST /webhook/slack/actions` | Verify signing secret; finalize or reject booking; log outcome |
 | **P6** | Demo polish | All freight modules | `[DROPPED-LANE]` / `[3PL]` / `[BASETEN]` / `[SLACK]` at every step; 60s recording passes |
 

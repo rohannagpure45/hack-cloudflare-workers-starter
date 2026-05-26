@@ -9,7 +9,12 @@ import type OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { createSubconscious, SUBCONSCIOUS_MODEL } from "../subconscious/client";
 import { buildSystemPrompt } from "./prompt";
-import { executeTool, getEnabledTools, type ToolDefinition } from "./tools";
+import {
+  executeTool,
+  getEnabledTools,
+  type ToolDefinition,
+  type ToolExecutionContext,
+} from "./tools";
 
 const RESPONSE_FORMAT = {
   type: "json_schema",
@@ -54,6 +59,7 @@ export interface RunLoopInput {
   maxTokens?: number;
   temperature?: number;
   enableThinking?: boolean;
+  toolContext?: ToolExecutionContext;
 }
 
 export interface RunLoopResult {
@@ -103,7 +109,7 @@ export async function runAgentLoop(input: RunLoopInput): Promise<RunLoopResult> 
     messages.push({ role: "assistant", content: raw });
 
     try {
-      const result = await executeTool(toolName, args);
+      const result = await executeTool(toolName, args, input.toolContext);
       toolCalls.push({
         name: toolName,
         arguments: JSON.stringify(args),

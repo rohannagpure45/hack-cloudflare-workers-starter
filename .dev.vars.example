@@ -5,8 +5,13 @@ SUBCONSCIOUS_API_KEY=sky_your_key_here
 # WEBHOOK_SECRET=your-webhook-secret
 
 # Slack app (Freight negotiator HITL / approvals) — from https://api.slack.com/apps
+# SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 # SLACK_APP_ID=A0XXXXXXXX
 # SLACK_CLIENT_ID=your-client-id
 # SLACK_CLIENT_SECRET=your-client-secret
 # SLACK_SIGNING_SECRET=your-signing-secret
 # SLACK_VERIFICATION_TOKEN=your-verification-token
+
+# Freight demo services
+# MOCK_3PL_BASE_URL=http://localhost:3000
+# APPROVAL_BASE_URL=https://my-worker.workers.dev

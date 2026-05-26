@@ -267,11 +267,13 @@ curl -s -X POST http://localhost:3000/api/3pl/coyote \
   -d '{ "origin": "27513", "destination": "07001" }'
 ```
 
-Next, expose these calls as **agent tools**:
+These calls are exposed to the agent through `fetch_quotes` in [`src/agent/tools.ts`](../src/agent/tools.ts). The tool calls both XPO and Coyote, returns the quotes, computes `best_quote`, and marks `requires_human_approval` when the best rate is over `$1500`.
 
-- Suggested names: `quote_xpo`, `quote_coyote`
-- Tool return shape can normalize the server response to `{ carrier: "XPO" | "Coyote", rate_usd: number, transit_hours: number }`
-- Log with `[3PL]` prefix
+The local SDK demo script runs the full tool loop:
+
+```bash
+SUBCONSCIOUS_API_KEY=sky_... npm run agent:freight
+```
 
 ### Baseten baseline
 
@@ -282,9 +284,13 @@ Next, expose these calls as **agent tools**:
 
 ### Slack HITL
 
-**Outgoing (approval):** POST to Slack incoming webhook URL with Block Kit or legacy attachments:
+**Outgoing (approval):** `request_human_approval` POSTs to `SLACK_WEBHOOK_URL` with Slack Block Kit:
 
-- Required fields per [AGENTS.md](../AGENTS.md): lane, carrier, quote, baseline, % over baseline, delivery guarantee, one-sentence rationale, approve/reject actions
+- Header: `🚨 Human Override Required: Spot Market Exception`
+- Lane: origin and destination
+- Best quote: carrier name, price, transit hours, optional quote ID
+- Actions: URL buttons for `https://my-worker.workers.dev/approve` and `/reject` by default; override with `APPROVAL_BASE_URL`
+- If `SLACK_WEBHOOK_URL` is not set locally, the script/tool prints the mock payload and logs `Waiting for human approval...`
 
 **Incoming (callback):** New route e.g. `POST /webhook/slack/actions`:
 
@@ -296,7 +302,7 @@ Next, expose these calls as **agent tools**:
 
 - **Auto-book:** negotiated rate ≤ **10%** over baseline
 - **Escalate:** best viable rate materially over baseline (~**20%+**)
-- Prefer explicit tool `request_slack_approval` plus a post-agent guardrail so the model cannot bypass HITL
+- Prefer explicit tool `request_human_approval` plus a post-agent guardrail so the model cannot bypass HITL
 
 ---
 

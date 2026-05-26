@@ -123,12 +123,20 @@ npm run mock:3pl
 
 It exposes `POST /api/3pl/xpo` and `POST /api/3pl/coyote` on `http://localhost:3000`. Both accept `{ "origin": "27513", "destination": "07001" }` and return randomized `quote_price` and `estimated_transit_hours` fields for demo spot-market quotes.
 
+Run the local Subconscious freight negotiator demo with:
+
+```bash
+SUBCONSCIOUS_API_KEY=sky_... npm run agent:freight
+```
+
+The agent calls `fetch_quotes`; if the best rate is over `$1500`, it calls `request_human_approval`. Set `SLACK_WEBHOOK_URL` to send the Slack App incoming webhook, or leave it unset to print the mock Block Kit payload.
+
 ## Subconscious
 
 - Base: `https://api.subconscious.dev/v1`
 - Model: `subconscious/tim-qwen3.6-27b`
 - Client: `createSubconscious(apiKey).chat(model).completions.create(...)` — **not** `/v1/responses`
-- Thinking defaults ON at Subconscious and in this starter via custom `fetch` in `createOpenAI` (`enable_thinking: true`)
+- Thinking defaults ON at Subconscious, but the freight negotiator default config turns it off for cleaner tool-call runs.
 - Tools are client-side — Worker executes them, not Subconscious
 
 Full API details: `.agents/skills/subconscious-dev/SKILL.md`

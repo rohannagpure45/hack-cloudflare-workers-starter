@@ -61,12 +61,11 @@ export function buildDroppedLaneInstructions(data: DroppedLanePayload): string {
   return `A primary carrier dropped freight lane ${lane_id} from origin ZIP ${origin_zip} to destination ZIP ${dest_zip}.
 
 Your job as the Freight Rate Spot Market Negotiator:
-1. Fetch a fair-market baseline for this lane.
-2. Request spot quotes from backup 3PL providers.
-3. Compare rate, transit time, and baseline delta.
-4. Counter-offer or select the best viable carrier.
-5. Auto-book only if the negotiated rate is within 10% of baseline.
-6. Escalate for human approval if the best viable rate is materially above baseline (especially ~20%+ over baseline).
+1. Call fetch_quotes with origin ${origin_zip} and destination ${dest_zip}.
+2. Compare XPO and Coyote by quote_price and estimated_transit_hours.
+3. If the best quote is $1500 or less, recommend that carrier for autonomous booking.
+4. If the best quote is over $1500, call request_human_approval with the lane details, best carrier name, best price, and transit hours.
+5. After requesting approval, report that the system is waiting for the logistics manager.
 
 Respond with a concise recovery plan and the next concrete action.${extras}`;
 }

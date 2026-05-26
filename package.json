@@ -7,6 +7,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "mock:3pl": "node scripts/mock-3pl-server.mjs",
+    "agent:freight": "node scripts/run-freight-agent.mjs",
     "types": "wrangler types",
     "check": "tsc --noEmit",
     "verify:git": "./scripts/verify-git-remote.sh",

@@ -87,6 +87,11 @@ export async function executeAgentRun(
       config,
       instructions,
       apiKey: env.SUBCONSCIOUS_API_KEY,
+      toolContext: {
+        mock3plBaseUrl: env.MOCK_3PL_BASE_URL,
+        slackWebhookUrl: env.SLACK_WEBHOOK_URL,
+        approvalBaseUrl: env.APPROVAL_BASE_URL,
+      },
     });
 
     run.status = "completed";

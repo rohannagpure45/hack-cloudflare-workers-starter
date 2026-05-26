@@ -1,11 +1,13 @@
 import { runAgentLoop } from "./loop";
 import type { AgentConfig } from "../types";
+import type { ToolExecutionContext } from "./tools";
 
 export interface RunAgentInput {
   config: AgentConfig;
   instructions: string;
   apiKey: string;
   maxToolRounds?: number;
+  toolContext?: ToolExecutionContext;
 }
 
 export interface RunAgentResult {
@@ -27,6 +29,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     maxTokens: input.config.maxTokens,
     temperature: input.config.temperature,
     enableThinking: input.config.enableThinking,
+    toolContext: input.toolContext,
   });
 
   return {

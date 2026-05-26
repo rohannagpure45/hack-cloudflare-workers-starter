@@ -266,7 +266,15 @@ curl -s -X POST http://localhost:3000/api/3pl/coyote \
   -d '{ "origin": "27513", "destination": "07001" }'
 ```
 
-Each response includes a randomized `quote_price` from `$1200` to `$1800` and `estimated_transit_hours` from `24` to `48`. The next agent slice should wrap these endpoints as Subconscious tools.
+Each response includes a randomized `quote_price` from `$1200` to `$1800` and `estimated_transit_hours` from `24` to `48`. The Subconscious agent uses these through the `fetch_quotes` tool.
+
+To run the local Subconscious freight negotiator demo:
+
+```bash
+SUBCONSCIOUS_API_KEY=sky_... npm run agent:freight
+```
+
+Set `SLACK_WEBHOOK_URL` to post the Block Kit approval alert to your Slack App incoming webhook. Without it, the script prints the mock Slack payload and still logs `Waiting for human approval...`.
 
 ### 1. Trigger — when does it run?
 
@@ -297,9 +305,9 @@ Set the system prompt, default instructions, and enabled tools via the dashboard
 curl -X PUT http://localhost:8787/api/agent/config \
   -H "Content-Type: application/json" \
   -d '{
-    "systemPrompt": "You are a Wayfair shopping assistant.",
-    "instructions": "Help the user find furniture that fits their room.",
-    "enabledTools": ["search_catalog", "log_note"]
+    "systemPrompt": "You are a logistics negotiator for a major furniture retailer. Your goal is to secure the cheapest alternative freight rate under $1500.",
+    "instructions": "Recover the dropped NC-to-NJ freight lane by fetching backup 3PL quotes. If the best quote is over $1500, request human approval through Slack before booking.",
+    "enabledTools": ["fetch_quotes", "request_human_approval"]
   }'
 ```
 
