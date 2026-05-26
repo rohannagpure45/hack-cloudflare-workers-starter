@@ -42,11 +42,11 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   systemPrompt:
     "You are a logistics negotiator for a major furniture retailer. Your goal is to secure the cheapest alternative freight rate under $1500.",
   instructions:
-    "Recover the dropped NC-to-NJ freight lane by fetching backup 3PL quotes. If the best quote is over $1500, request human approval through Slack before booking.",
+    "Recover the dropped NC-to-NJ freight lane by fetching backup 3PL quotes. Always notify the logistics team on Slack. If the best quote is over $1500, request human approval before booking; otherwise send an autonomous booking notification.",
   enableThinking: false,
   maxTokens: 1000,
   temperature: 0.2,
-  enabledTools: ["fetch_quotes", "request_human_approval"],
+  enabledTools: ["fetch_quotes", "notify_lane_recovery", "request_human_approval"],
   cronInstructions:
     "Check whether any freight recovery lane needs attention. Do not book freight without an active dropped-lane event.",
 };

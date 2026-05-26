@@ -48,7 +48,7 @@ function readNodeEnv(name: string): string | undefined {
 }
 
 function cleanToolString(value: string): string {
-  return value.replace(/<\/?\s*parameter\s*>/gi, "").trim();
+  return value.replace(/<\/?\s*parameter\b\s*>?/gi, "").trim();
 }
 
 function requireString(args: Record<string, unknown>, key: string): string {
@@ -106,7 +106,7 @@ async function fetchProviderQuote(
   return (await response.json()) as FreightQuote;
 }
 
-function buildSlackApprovalPayload(input: {
+interface LaneNotificationInput {
   laneId?: string;
   origin: string;
   destination: string;
@@ -114,19 +114,34 @@ function buildSlackApprovalPayload(input: {
   price: number;
   estimatedTransitHours?: number;
   quoteId?: string;
-  approvalBaseUrl: string;
-}): Record<string, unknown> {
+}
+
+function parseLaneNotificationArgs(
+  args: Record<string, unknown>,
+): LaneNotificationInput {
+  const estimatedTransitRaw = args.estimated_transit_hours;
+  return {
+    laneId: optionalString(args, "lane_id"),
+    origin: requireString(args, "origin"),
+    destination: requireString(args, "destination"),
+    carrierName: requireString(args, "carrier_name"),
+    price: requireFiniteNumber(args, "price"),
+    estimatedTransitHours:
+      estimatedTransitRaw === undefined
+        ? undefined
+        : requireFiniteNumber(args, "estimated_transit_hours"),
+    quoteId: optionalString(args, "quote_id"),
+  };
+}
+
+function buildSlackLaneFields(
+  input: LaneNotificationInput,
+): Array<{ type: "mrkdwn"; text: string }> {
   const details = [
-    { type: "mrkdwn", text: `*Origin*\n${input.origin}` },
-    { type: "mrkdwn", text: `*Destination*\n${input.destination}` },
-    {
-      type: "mrkdwn",
-      text: `*Carrier*\n${input.carrierName}`,
-    },
-    {
-      type: "mrkdwn",
-      text: `*Price*\n${formatUsd(input.price)}`,
-    },
+    { type: "mrkdwn" as const, text: `*Origin*\n${input.origin}` },
+    { type: "mrkdwn" as const, text: `*Destination*\n${input.destination}` },
+    { type: "mrkdwn" as const, text: `*Carrier*\n${input.carrierName}` },
+    { type: "mrkdwn" as const, text: `*Price*\n${formatUsd(input.price)}` },
   ];
 
   if (input.estimatedTransitHours !== undefined) {
@@ -143,6 +158,81 @@ function buildSlackApprovalPayload(input: {
   if (input.quoteId) {
     details.push({ type: "mrkdwn", text: `*Quote ID*\n${input.quoteId}` });
   }
+
+  return details;
+}
+
+async function deliverSlackNotification(
+  context: ToolExecutionContext | undefined,
+  payload: Record<string, unknown>,
+  logLabel: string,
+): Promise<{ sent: boolean; slack_payload?: Record<string, unknown> }> {
+  const webhookUrl =
+    context?.slackWebhookUrl ?? readNodeEnv("SLACK_WEBHOOK_URL");
+
+  if (webhookUrl) {
+    console.log(`[SLACK] ${logLabel}`);
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Slack webhook failed (${response.status}): ${body}`);
+    }
+
+    return { sent: true };
+  }
+
+  console.log(`[SLACK] SLACK_WEBHOOK_URL is not set; mock payload (${logLabel}):`);
+  console.log(JSON.stringify(payload, null, 2));
+  return { sent: false, slack_payload: payload };
+}
+
+function buildSlackAutonomousBookingPayload(
+  input: LaneNotificationInput,
+): Record<string, unknown> {
+  return {
+    text: "✅ Lane Recovered: Autonomous Booking Confirmed",
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "✅ Lane Recovered — Autonomous Booking",
+          emoji: true,
+        },
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Best spot rate is at or below the $${SPOT_RATE_THRESHOLD_USD.toLocaleString("en-US")} autonomous booking limit.* The backup carrier is being booked without human approval.`,
+        },
+      },
+      {
+        type: "section",
+        fields: buildSlackLaneFields(input),
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: "Informational notification only — no action required.",
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function buildSlackApprovalPayload(
+  input: LaneNotificationInput & { approvalBaseUrl: string },
+): Record<string, unknown> {
+  const details = buildSlackLaneFields(input);
 
   return {
     text: "🚨 Human Override Required: Spot Market Exception",
@@ -274,60 +364,78 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
       required: ["origin", "destination", "carrier_name", "price"],
     },
     execute: async (args, context) => {
-      const origin = requireString(args, "origin");
-      const destination = requireString(args, "destination");
-      const carrierName = requireString(args, "carrier_name");
-      const price = requireFiniteNumber(args, "price");
-      const estimatedTransitRaw = args.estimated_transit_hours;
-      const estimatedTransitHours =
-        estimatedTransitRaw === undefined
-          ? undefined
-          : requireFiniteNumber(args, "estimated_transit_hours");
-      const laneId = optionalString(args, "lane_id");
-      const quoteId = optionalString(args, "quote_id");
+      const lane = parseLaneNotificationArgs(args);
       const approvalBaseUrl =
         context?.approvalBaseUrl ??
         readNodeEnv("APPROVAL_BASE_URL") ??
         DEFAULT_APPROVAL_BASE_URL;
       const payload = buildSlackApprovalPayload({
-        laneId,
-        origin,
-        destination,
-        carrierName,
-        price,
-        estimatedTransitHours,
-        quoteId,
+        ...lane,
         approvalBaseUrl,
       });
-      const webhookUrl =
-        context?.slackWebhookUrl ?? readNodeEnv("SLACK_WEBHOOK_URL");
-
-      if (webhookUrl) {
-        const response = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(`Slack webhook failed (${response.status}): ${body}`);
-        }
-      } else {
-        console.log("[SLACK] SLACK_WEBHOOK_URL is not set; mock payload follows:");
-        console.log(JSON.stringify(payload, null, 2));
-      }
+      const delivery = await deliverSlackNotification(
+        context,
+        payload,
+        "Sending human approval alert",
+      );
 
       console.log("Waiting for human approval...");
 
       return {
-        sent: Boolean(webhookUrl),
+        ...delivery,
+        notification_type: "approval_required",
         waiting_for_human_approval: true,
         approval_urls: {
-          approve: approvalActionUrl(approvalBaseUrl, "approve", laneId),
-          reject: approvalActionUrl(approvalBaseUrl, "reject", laneId),
+          approve: approvalActionUrl(approvalBaseUrl, "approve", lane.laneId),
+          reject: approvalActionUrl(approvalBaseUrl, "reject", lane.laneId),
         },
-        slack_payload: webhookUrl ? undefined : payload,
+      };
+    },
+  },
+
+  notify_lane_recovery: {
+    name: "notify_lane_recovery",
+    description:
+      "Send a Slack notification when the best freight spot quote is within policy and the agent is auto-booking without human approval.",
+    parameters: {
+      type: "object",
+      properties: {
+        lane_id: { type: "string", description: "Optional dropped lane identifier" },
+        origin: { type: "string", description: "Origin ZIP code" },
+        destination: { type: "string", description: "Destination ZIP code" },
+        carrier_name: {
+          type: "string",
+          description: "Carrier name for the best quote",
+        },
+        price: { type: "number", description: "Best quote price in USD" },
+        estimated_transit_hours: {
+          type: "number",
+          description: "Estimated transit time in hours",
+        },
+        quote_id: {
+          type: "string",
+          description: "Optional provider quote identifier",
+        },
+      },
+      required: ["origin", "destination", "carrier_name", "price"],
+    },
+    execute: async (args, context) => {
+      const lane = parseLaneNotificationArgs(args);
+      const payload = buildSlackAutonomousBookingPayload(lane);
+      const delivery = await deliverSlackNotification(
+        context,
+        payload,
+        "Sending autonomous booking notification",
+      );
+
+      console.log("[SLACK] Autonomous booking in progress (demo)");
+
+      return {
+        ...delivery,
+        notification_type: "autonomous_booking",
+        autonomous_booking: true,
+        carrier: lane.carrierName,
+        price_usd: lane.price,
       };
     },
   },

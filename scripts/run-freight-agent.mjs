@@ -1,4 +1,7 @@
 import OpenAI from "openai";
+import fs from "node:fs";
+
+loadLocalEnv(".dev.vars");
 
 const SUBCONSCIOUS_BASE_URL = "https://api.subconscious.dev/v1";
 const SUBCONSCIOUS_MODEL =
@@ -28,6 +31,33 @@ function requireSubconsciousApiKey() {
   return process.env.SUBCONSCIOUS_API_KEY;
 }
 
+function loadLocalEnv(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const equalsIndex = trimmed.indexOf("=");
+    if (equalsIndex === -1) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, equalsIndex).trim();
+    const rawValue = trimmed.slice(equalsIndex + 1).trim();
+    if (!key || process.env[key] !== undefined) {
+      continue;
+    }
+
+    process.env[key] = rawValue.replace(/^(['"])(.*)\1$/, "$2");
+  }
+}
+
 function formatUsd(value) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -38,7 +68,7 @@ function formatUsd(value) {
 
 function cleanToolString(value) {
   return String(value ?? "")
-    .replace(/<\/?\s*parameter\s*>/gi, "")
+    .replace(/<\/?\s*parameter\b\s*>?/gi, "")
     .trim();
 }
 
@@ -113,6 +143,75 @@ async function fetchQuotes(args) {
   });
 
   return result;
+}
+
+function buildSlackAutonomousPayload(args) {
+  const laneId = optionalToolString(args, "lane_id", scenario.lane_id);
+  const origin = requireToolString(args, "origin", scenario.origin);
+  const destination = requireToolString(args, "destination", scenario.destination);
+  const carrierName = requireToolString(args, "carrier_name");
+  const price = requireToolNumber(args, "price");
+  const estimatedTransitHours =
+    args.estimated_transit_hours === undefined
+      ? undefined
+      : requireToolNumber(args, "estimated_transit_hours");
+  const quoteId = optionalToolString(args, "quote_id");
+
+  const fields = [
+    { type: "mrkdwn", text: `*Origin*\n${origin}` },
+    { type: "mrkdwn", text: `*Destination*\n${destination}` },
+    { type: "mrkdwn", text: `*Carrier Name*\n${carrierName}` },
+    { type: "mrkdwn", text: `*Price*\n${formatUsd(price)}` },
+  ];
+
+  if (estimatedTransitHours !== undefined) {
+    fields.push({
+      type: "mrkdwn",
+      text: `*Transit Window*\n${estimatedTransitHours} hours`,
+    });
+  }
+
+  if (laneId) {
+    fields.push({ type: "mrkdwn", text: `*Lane ID*\n${laneId}` });
+  }
+
+  if (quoteId) {
+    fields.push({ type: "mrkdwn", text: `*Quote ID*\n${quoteId}` });
+  }
+
+  return {
+    text: "✅ Lane Recovered: Autonomous Booking Confirmed",
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "✅ Lane Recovered — Autonomous Booking",
+          emoji: true,
+        },
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Best spot rate is at or below the $${SPOT_RATE_THRESHOLD_USD.toLocaleString("en-US")} autonomous booking limit.* The backup carrier is being booked without human approval.`,
+        },
+      },
+      {
+        type: "section",
+        fields,
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: "Informational notification only — no action required.",
+          },
+        ],
+      },
+    ],
+  };
 }
 
 function buildSlackPayload(args) {
@@ -192,11 +291,9 @@ function buildSlackPayload(args) {
   };
 }
 
-async function requestHumanApproval(args) {
-  const payload = buildSlackPayload(args);
-
+async function deliverSlack(payload, logLabel) {
   if (SLACK_WEBHOOK_URL) {
-    console.log("[request_human_approval] Sending Slack approval alert");
+    console.log(`[SLACK] ${logLabel}`);
     const response = await fetch(SLACK_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -208,22 +305,46 @@ async function requestHumanApproval(args) {
       throw new Error(`Slack webhook failed (${response.status}): ${text}`);
     }
   } else {
-    console.log(
-      "[request_human_approval] SLACK_WEBHOOK_URL is not set; mock Slack payload:",
-    );
+    console.log(`[SLACK] SLACK_WEBHOOK_URL is not set; mock payload (${logLabel}):`);
     console.log(JSON.stringify(payload, null, 2));
   }
+
+  return {
+    sent: Boolean(SLACK_WEBHOOK_URL),
+    slack_payload: SLACK_WEBHOOK_URL ? undefined : payload,
+  };
+}
+
+async function notifyLaneRecovery(args) {
+  const payload = buildSlackAutonomousPayload(args);
+  const delivery = await deliverSlack(
+    payload,
+    "Sending autonomous booking notification",
+  );
+
+  console.log("[notify_lane_recovery] Autonomous booking in progress (demo)");
+
+  return {
+    ...delivery,
+    notification_type: "autonomous_booking",
+    autonomous_booking: true,
+  };
+}
+
+async function requestHumanApproval(args) {
+  const payload = buildSlackPayload(args);
+  const delivery = await deliverSlack(payload, "Sending human approval alert");
 
   console.log("Waiting for human approval...");
 
   return {
-    sent: Boolean(SLACK_WEBHOOK_URL),
+    ...delivery,
+    notification_type: "approval_required",
     waiting_for_human_approval: true,
     approval_urls: {
       approve: `${APPROVAL_BASE_URL}/approve`,
       reject: `${APPROVAL_BASE_URL}/reject`,
     },
-    slack_payload: SLACK_WEBHOOK_URL ? undefined : payload,
   };
 }
 
@@ -242,6 +363,27 @@ const tools = [
           destination: { type: "string", description: "Destination ZIP code" },
         },
         required: ["origin", "destination"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "notify_lane_recovery",
+      description:
+        "Send a Slack notification when the best freight quote is within policy and the agent auto-books without human approval.",
+      parameters: {
+        type: "object",
+        properties: {
+          lane_id: { type: "string" },
+          origin: { type: "string" },
+          destination: { type: "string" },
+          carrier_name: { type: "string" },
+          price: { type: "number" },
+          estimated_transit_hours: { type: "number" },
+          quote_id: { type: "string" },
+        },
+        required: ["origin", "destination", "carrier_name", "price"],
       },
     },
   },
@@ -270,12 +412,30 @@ const tools = [
 
 const toolHandlers = {
   fetch_quotes: fetchQuotes,
+  notify_lane_recovery: notifyLaneRecovery,
   request_human_approval: requestHumanApproval,
 };
 
 function parseToolArguments(raw) {
   if (!raw) return {};
   return JSON.parse(raw);
+}
+
+function buildBestQuoteToolArgs(quoteResult) {
+  const bestQuote = quoteResult?.best_quote;
+  if (!bestQuote) {
+    throw new Error("Cannot build Slack payload before fetch_quotes returns best_quote.");
+  }
+
+  return {
+    lane_id: quoteResult.lane_id ?? scenario.lane_id,
+    origin: quoteResult.origin ?? scenario.origin,
+    destination: quoteResult.destination ?? scenario.destination,
+    carrier_name: bestQuote.carrier,
+    price: bestQuote.quote_price,
+    estimated_transit_hours: bestQuote.estimated_transit_hours,
+    quote_id: bestQuote.quote_id,
+  };
 }
 
 async function run() {
@@ -291,8 +451,9 @@ async function run() {
 
 Rules:
 - Always call fetch_quotes before making a decision.
-- If fetch_quotes returns requires_human_approval=true, you must call request_human_approval with the best_quote details before your final answer.
-- If the best quote is $1500 or less, recommend that carrier for autonomous booking.
+- Always send exactly one Slack notification after fetch_quotes.
+- If fetch_quotes returns requires_human_approval=true, call request_human_approval with the best_quote details.
+- If requires_human_approval=false, call notify_lane_recovery with the best_quote details, then recommend autonomous booking.
 - Keep the final answer concise and operational.`,
     },
     {
@@ -309,15 +470,16 @@ Recover the lane now.`,
     lane: scenario.lane_id,
   });
 
-  let mustRequestHumanApproval = false;
+  let forcedTool = null;
+  let lastQuoteResult = null;
 
   for (let round = 1; round <= 6; round++) {
     const response = await client.chat.completions.create({
       model: SUBCONSCIOUS_MODEL,
       messages,
       tools,
-      tool_choice: mustRequestHumanApproval
-        ? { type: "function", function: { name: "request_human_approval" } }
+      tool_choice: forcedTool
+        ? { type: "function", function: { name: forcedTool } }
         : "auto",
       temperature: 0.2,
       max_tokens: 900,
@@ -344,14 +506,25 @@ Recover the lane now.`,
         throw new Error(`No local handler registered for tool: ${name}`);
       }
 
-      const args = parseToolArguments(toolCall.function.arguments);
+      let args = parseToolArguments(toolCall.function.arguments);
+      if (name === "request_human_approval" || name === "notify_lane_recovery") {
+        args = {
+          ...args,
+          ...buildBestQuoteToolArgs(lastQuoteResult),
+        };
+      }
+
       console.log(`[agent] Tool call: ${name}`, args);
       const result = await handler(args);
-      mustRequestHumanApproval =
-        name === "fetch_quotes" && result.requires_human_approval === true;
+      if (name === "fetch_quotes") {
+        lastQuoteResult = result;
+        forcedTool = result.requires_human_approval
+          ? "request_human_approval"
+          : "notify_lane_recovery";
+      }
 
-      if (name === "request_human_approval") {
-        mustRequestHumanApproval = false;
+      if (name === "request_human_approval" || name === "notify_lane_recovery") {
+        forcedTool = null;
       }
 
       messages.push({
