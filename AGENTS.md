@@ -11,6 +11,8 @@ Hackathon starter: **Cloudflare Workers + Subconscious API** for Wayfair agent c
 
 ## Current project target
 
+**Project docs:** [docs/ROADMAP.md](docs/ROADMAP.md) (status & priorities) · [docs/INTEGRATION.md](docs/INTEGRATION.md) (APIs, architecture, agent integration)
+
 Build the **Freight Rate Spot Market Negotiator** for Wayfair supplier and procurement operations.
 
 The product story: a primary carrier drops a lane from a North Carolina supplier to a New Jersey fulfillment center. A Cloudflare Worker catches the dropped-lane event, provisions or triggers a Subconscious lane-recovery agent, calls Baseten for a fair-market baseline, fetches quotes from mock 3PL providers, negotiates toward the best rate, and either books automatically or asks a human logistics manager for approval through a Slack App message.
@@ -105,7 +107,10 @@ Track 1 shopping assistant: `examples/shopping-assistant/` — run with `bash ex
 - `PUT /api/agent/config` — update agent logic
 - `POST /api/run` — run now (`{ "instructions": "..." }`)
 - `POST /api/webhook` — event trigger
+- `POST /webhook/dropped-lane` — freight telemetry (200 immediately, agent in background)
 - `GET /api/runs` — history
+
+Full route spec: [docs/INTEGRATION.md](docs/INTEGRATION.md).
 
 ## Subconscious
 
