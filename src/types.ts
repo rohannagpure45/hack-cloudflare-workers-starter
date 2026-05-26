@@ -40,7 +40,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
     "You are a helpful AI agent running on Cloudflare Workers. Be concise and actionable.",
   instructions:
     "Check in on the hackathon project. Summarize what you would do next and one concrete action the team should take.",
-  enableThinking: false,
+  enableThinking: true,
   maxTokens: 1000,
   temperature: 0.7,
   enabledTools: ["search_catalog", "log_note", "get_time"],

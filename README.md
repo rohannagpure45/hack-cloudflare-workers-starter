@@ -207,7 +207,7 @@ cp .dev.vars.example .dev.vars
 Model: `subconscious/tim-qwen3.6-27b` via `src/subconscious/client.ts`:
 
 ```typescript
-const subconscious = createSubconscious(apiKey, { enableThinking: false });
+const subconscious = createSubconscious(apiKey, { enableThinking: true });
 const response = await subconscious.chat(SUBCONSCIOUS_MODEL).completions.create({
   messages: [{ role: "user", content: "Hello" }],
 });
@@ -215,7 +215,7 @@ const response = await subconscious.chat(SUBCONSCIOUS_MODEL).completions.create(
 
 Use **`subconscious.chat(model)`** → `/v1/chat/completions`. Do not use `/v1/responses` (unsupported).
 
-Subconscious defaults **thinking ON**. This starter disables it automatically via a custom `fetch` on `createOpenAI` that merges `chat_template_kwargs: { enable_thinking: false }` into every chat request body. Set `enableThinking: true` on `createSubconscious()` to opt back in.
+Subconscious defaults **thinking ON**. This starter keeps thinking on by default via a custom `fetch` on `createOpenAI` that merges `chat_template_kwargs: { enable_thinking: true }` into every chat request body. Set `enableThinking: false` on `createSubconscious()` to opt out for faster responses.
 
 ### 4. Tools — the hands
 
@@ -304,7 +304,7 @@ Docs: [docs.subconscious.dev](https://docs.subconscious.dev) · Playground: [sub
 - Prototype prompts in [hack-cli-starter](https://github.com/subconscious-systems/subconscious/tree/main/examples/hack-cli-starter), then deploy here.
 - Start with one track, one trigger, and one tool — then expand.
 - Use the dashboard to iterate on prompts before writing code.
-- Set `enableThinking: false` (default) for fast responses; turn on for harder reasoning tasks.
+- Thinking is on by default for stronger reasoning. Set `enableThinking: false` for faster responses when the task is simple.
 - Mock external data in tools first; swap in real APIs when the agent logic works.
 
 Good luck — build something useful for Wayfair customers, suppliers, or ops teams.

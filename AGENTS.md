@@ -66,7 +66,7 @@ Track 1 shopping assistant: `examples/shopping-assistant/` — run with `bash ex
 - Base: `https://api.subconscious.dev/v1`
 - Model: `subconscious/tim-qwen3.6-27b`
 - Client: `createSubconscious(apiKey).chat(model).completions.create(...)` — **not** `/v1/responses`
-- Thinking defaults ON at Subconscious; disabled via custom `fetch` in `createOpenAI` (`enable_thinking: false`)
+- Thinking defaults ON at Subconscious and in this starter via custom `fetch` in `createOpenAI` (`enable_thinking: true`)
 - Tools are client-side — Worker executes them, not Subconscious
 
 Full API details: `.agents/skills/subconscious-dev/SKILL.md`

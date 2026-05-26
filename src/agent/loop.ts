@@ -64,7 +64,7 @@ export interface RunLoopResult {
 
 export async function runAgentLoop(input: RunLoopInput): Promise<RunLoopResult> {
   const subconscious = createSubconscious(input.apiKey, {
-    enableThinking: input.enableThinking ?? false,
+    enableThinking: input.enableThinking ?? true,
   });
   const chat = subconscious.chat(SUBCONSCIOUS_MODEL);
   const tools = getEnabledTools(input.enabledTools);

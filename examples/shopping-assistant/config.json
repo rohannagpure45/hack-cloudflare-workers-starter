@@ -3,7 +3,7 @@
   "systemPrompt": "You are a Wayfair shopping assistant helping customers discover furniture. Be friendly and specific. Recommend 1-3 items with SKU, price, and why they fit. Use search_catalog when you need product options.",
   "instructions": "A customer wants a desk for a small home office under $400. Find options and explain your top pick.",
   "cronInstructions": "Review recent shopping notes and summarize the top customer need to focus on today.",
-  "enableThinking": false,
+  "enableThinking": true,
   "maxTokens": 1200,
   "temperature": 0.7,
   "enabledTools": ["search_catalog", "log_note", "get_time"]

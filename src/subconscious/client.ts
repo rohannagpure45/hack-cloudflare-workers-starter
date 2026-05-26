@@ -5,7 +5,7 @@ export const SUBCONSCIOUS_BASE_URL = "https://api.subconscious.dev/v1";
 
 export interface CreateOpenAIOptions {
   apiKey: string;
-  /** Subconscious defaults thinking ON — we default to false unless overridden per client. */
+  /** Subconscious defaults thinking ON, and this starter keeps that default unless overridden per client. */
   enableThinking?: boolean;
   /** When stream: true, merge stream_options.include_usage (default true). */
   includeUsageOnStream?: boolean;
@@ -64,10 +64,10 @@ function injectSubconsciousDefaults(
  *
  * Injects `chat_template_kwargs.enable_thinking` on every chat/completions POST
  * because the OpenAI SDK has no direct param for this Subconscious extension.
- * Subconscious defaults thinking ON — we default it OFF for cleaner, faster output.
+ * Subconscious defaults thinking ON, and this starter keeps that default.
  */
 export function createOpenAI(options: CreateOpenAIOptions): OpenAI {
-  const enableThinking = options.enableThinking ?? false;
+  const enableThinking = options.enableThinking ?? true;
   const includeUsageOnStream = options.includeUsageOnStream ?? true;
 
   return new OpenAI({
