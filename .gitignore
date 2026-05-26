@@ -1,7 +1,19 @@
 node_modules/
-.wrangler/
-.dev.vars
-.env
+/.wrangler/
+/.dev.vars
+/.env
 *.log
 .DS_Store
-worker-configuration.d.ts
+/worker-configuration.d.ts
+
+# Nested repository/dependency artifacts from vendored source snapshots.
+**/.git/
+**/node_modules/
+**/.cache/
+**/.turbo/
+**/.next/
+**/dist/
+**/build/
+**/coverage/
+**/.wrangler/
+**/.DS_Store

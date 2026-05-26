@@ -1,0 +1,50 @@
+# Baseten CLI
+
+CLI for the [Baseten Inference Platform](https://baseten.co).
+
+⚠️ Under active development. Nothing should be considered stable at this time.
+
+## Installation
+
+Download the [latest release](https://github.com/basetenlabs/baseten-cli/releases/latest) for your platform.
+
+Extract the archive and use the `baseten` executable within. Place it on your `PATH` to invoke it from anywhere.
+
+## Usage
+
+Authenticate via `baseten auth login`, or set `BASETEN_API_KEY` in the environment.
+
+Run `baseten --help` (or `baseten <command> --help`) for the full command tree.
+
+### Deploying Models
+
+From inside a model directory containing a `config.yaml`:
+
+    baseten model push
+
+The directory defaults to the current working directory and is configurable via `--dir`. Useful flags:
+
+- `--tail` streams build and runtime logs to stderr after the push completes.
+- `--wait` blocks until the deployment reaches an active status and exits non-zero on terminal failure.
+
+### Calling a Model
+
+    baseten model predict --model-id <model-id> --data '{"prompt":"hello"}'
+
+`--model-name` is also accepted. Pass `--file <path>` (or `--file -` for stdin) to send a request body from a file.
+
+### Viewing Logs
+
+    baseten model deployment logs --model-id <model-id> --deployment-id <deployment-id> --tail
+
+Omit `--tail` and pass `--since 1h` (or `--start`/`--end`) to fetch a historical window.
+
+Run `baseten --help` for more, and see [docs.baseten.co](https://docs.baseten.co) for general Baseten platform documentation.
+
+## Building
+
+To build from source, clone this repository and run:
+
+    go build ./cmd/baseten
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.

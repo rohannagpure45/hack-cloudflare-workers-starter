@@ -1,0 +1,16 @@
+{
+  "name": "<WORKER_NAME>",
+  "main": "./dist/_worker.js",
+  "compatibility_date": "<COMPATIBILITY_DATE>",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "assets": {
+    "binding": "ASSET",
+    "directory": "./dist"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,69 @@
+name: Release a hotfix
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: "Which PR should be released?"
+        required: true
+      confirm:
+        description: "Confirm that the PR is up to date with the last published release, with the specific additional changes that should be released as part of this hotfix and the relevant package patch versions bumped"
+        type: boolean
+        required: true
+      label:
+        description: "Which dist-tag should this release have?"
+        type: string
+        default: hotfix
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  hotfix-release:
+    name: Hotfix Release
+    if: ${{ inputs.confirm == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check user for team affiliation
+        uses: tspascoal/get-user-teams-membership@ba78054988f58bea69b7c6136d563236f8ed2fc0 # v2
+        id: teamAffiliation
+        with:
+          GITHUB_TOKEN: ${{ secrets.READ_ONLY_ORG_GITHUB_TOKEN }}
+          username: ${{ github.actor }}
+          team: wrangler
+
+      - name: Stop workflow if user is not a wrangler team member
+        if: ${{ steps.teamAffiliation.outputs.isTeamMember == false }}
+        run: |
+          echo "You must be on the "wrangler" team to trigger this job."
+          exit 1
+
+      - name: "Checkout PR"
+        run: gh pr checkout ${{ inputs.pr-number }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Install Dependencies
+        # Defense in depth: do not pass Turbo remote cache credentials and
+        # disable the pnpm store cache so release builds always resolve
+        # packages from the registry and rebuild every task from source,
+        # rather than restoring from a (potentially poisoned) cache.
+        uses: ./.github/actions/install-dependencies
+        with:
+          disable-cache: "true"
+
+      - name: Build all packages
+        run: pnpm run build
+        env:
+          CI_OS: ${{ runner.os }}
+
+      - name: Publish packages
+        run: pnpm publish -r --tag ${{ inputs.label }} --filter wrangler --filter miniflare --filter create-cloudflare
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
