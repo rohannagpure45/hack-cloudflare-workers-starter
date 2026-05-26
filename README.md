@@ -254,6 +254,16 @@ Run the local Express server in a separate terminal when developing the freight 
 npm run mock:3pl
 ```
 
+Use deterministic demo scenarios when recording:
+
+```bash
+# Best quote is under $1,500, so the agent recommends autonomous booking.
+npm run mock:3pl:auto
+
+# All quotes are over $1,500, so the agent calls request_human_approval.
+npm run mock:3pl:hitl
+```
+
 It exposes two dummy freight broker endpoints:
 
 ```bash
@@ -266,7 +276,7 @@ curl -s -X POST http://localhost:3000/api/3pl/coyote \
   -d '{ "origin": "27513", "destination": "07001" }'
 ```
 
-Each response includes a randomized `quote_price` from `$1200` to `$1800` and `estimated_transit_hours` from `24` to `48`. The Subconscious agent uses these through the `fetch_quotes` tool.
+By default, each response includes a randomized `quote_price` from `$1200` to `$1800` and `estimated_transit_hours` from `24` to `48`. The `auto` and `hitl` scripts use fixed quote prices so the demo outcome is repeatable. The Subconscious agent uses these through the `fetch_quotes` tool.
 
 To run the local Subconscious freight negotiator demo:
 
@@ -275,6 +285,33 @@ SUBCONSCIOUS_API_KEY=sky_... npm run agent:freight
 ```
 
 Set `SLACK_WEBHOOK_URL` to post the Block Kit approval alert to your Slack App incoming webhook. Without it, the script prints the mock Slack payload and still logs `Waiting for human approval...`.
+
+Two-terminal demo commands:
+
+```bash
+# Terminal 1: autonomous booking scenario
+npm run mock:3pl:auto
+
+# Terminal 2
+set -a; . ./.dev.vars; set +a
+npm run agent:freight
+```
+
+```bash
+# Terminal 1: human-in-the-loop scenario
+npm run mock:3pl:hitl
+
+# Terminal 2
+set -a; . ./.dev.vars; set +a
+npm run agent:freight
+```
+
+For a real Slack post in the HITL scenario, add `SLACK_WEBHOOK_URL` to `.dev.vars` or run:
+
+```bash
+set -a; . ./.dev.vars; set +a
+SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..." npm run agent:freight
+```
 
 ### 1. Trigger — when does it run?
 

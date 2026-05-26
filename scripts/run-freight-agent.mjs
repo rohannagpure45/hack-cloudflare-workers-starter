@@ -36,6 +36,33 @@ function formatUsd(value) {
   }).format(value);
 }
 
+function cleanToolString(value) {
+  return String(value ?? "")
+    .replace(/<\/?\s*parameter\s*>/gi, "")
+    .trim();
+}
+
+function requireToolString(args, key, fallback) {
+  const value = cleanToolString(args[key] ?? fallback);
+  if (!value) {
+    throw new Error(`${key} is required and must be a non-empty string`);
+  }
+  return value;
+}
+
+function optionalToolString(args, key, fallback) {
+  const value = cleanToolString(args[key] ?? fallback);
+  return value || undefined;
+}
+
+function requireToolNumber(args, key) {
+  const value = Number(cleanToolString(args[key]).replace(/[$,]/g, ""));
+  if (!Number.isFinite(value)) {
+    throw new Error(`${key} is required and must be a finite number`);
+  }
+  return value;
+}
+
 async function postJson(url, body) {
   const response = await fetch(url, {
     method: "POST",
@@ -52,8 +79,8 @@ async function postJson(url, body) {
 }
 
 async function fetchQuotes(args) {
-  const origin = String(args.origin ?? scenario.origin);
-  const destination = String(args.destination ?? scenario.destination);
+  const origin = requireToolString(args, "origin", scenario.origin);
+  const destination = requireToolString(args, "destination", scenario.destination);
 
   console.log("[fetch_quotes] Requesting XPO and Coyote spot quotes", {
     origin,
@@ -89,13 +116,16 @@ async function fetchQuotes(args) {
 }
 
 function buildSlackPayload(args) {
-  const laneId = args.lane_id ?? scenario.lane_id;
-  const origin = args.origin ?? scenario.origin;
-  const destination = args.destination ?? scenario.destination;
-  const carrierName = args.carrier_name;
-  const price = Number(args.price);
-  const estimatedTransitHours = args.estimated_transit_hours;
-  const quoteId = args.quote_id;
+  const laneId = optionalToolString(args, "lane_id", scenario.lane_id);
+  const origin = requireToolString(args, "origin", scenario.origin);
+  const destination = requireToolString(args, "destination", scenario.destination);
+  const carrierName = requireToolString(args, "carrier_name");
+  const price = requireToolNumber(args, "price");
+  const estimatedTransitHours =
+    args.estimated_transit_hours === undefined
+      ? undefined
+      : requireToolNumber(args, "estimated_transit_hours");
+  const quoteId = optionalToolString(args, "quote_id");
 
   const fields = [
     { type: "mrkdwn", text: `*Origin*\n${origin}` },

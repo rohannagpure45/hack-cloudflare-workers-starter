@@ -123,6 +123,13 @@ npm run mock:3pl
 
 It exposes `POST /api/3pl/xpo` and `POST /api/3pl/coyote` on `http://localhost:3000`. Both accept `{ "origin": "27513", "destination": "07001" }` and return randomized `quote_price` and `estimated_transit_hours` fields for demo spot-market quotes.
 
+Use deterministic demo modes when needed:
+
+```bash
+npm run mock:3pl:auto   # best quote under $1500; autonomous booking path
+npm run mock:3pl:hitl   # all quotes over $1500; human approval path
+```
+
 Run the local Subconscious freight negotiator demo with:
 
 ```bash

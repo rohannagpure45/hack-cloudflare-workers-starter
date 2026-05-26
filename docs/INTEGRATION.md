@@ -241,19 +241,27 @@ Local dummy environment is available as a standalone Express server:
 
 ```bash
 npm run mock:3pl
+# Deterministic demo modes:
+npm run mock:3pl:auto   # best quote under $1500
+npm run mock:3pl:hitl   # all quotes over $1500
 ```
 
-It listens on `http://localhost:3000` by default. Set `MOCK_3PL_PORT=3001` to use a different port.
+It listens on `http://localhost:3000` by default. Set `MOCK_3PL_PORT=3001` to use a different port. Set `MOCK_3PL_SCENARIO=random|auto|hitl` directly if you are not using the npm aliases.
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
 | POST | `/api/3pl/xpo` | `{ "origin": "27513", "destination": "07001" }` | `{ carrier, origin, destination, quote_price, estimated_transit_hours, currency, quote_id }` |
 | POST | `/api/3pl/coyote` | `{ "origin": "27513", "destination": "07001" }` | `{ carrier, origin, destination, quote_price, estimated_transit_hours, currency, quote_id }` |
 
-Quotes are randomized for the demo:
+Quotes are randomized by default:
 
 - `quote_price`: integer from `$1200` to `$1800`
 - `estimated_transit_hours`: integer from `24` to `48`
+
+Deterministic scenarios:
+
+- `auto`: XPO `$1359`, Coyote `$1448`, so no HITL approval is required.
+- `hitl`: XPO `$1640`, Coyote `$1725`, so the agent must call `request_human_approval`.
 
 Verify locally:
 
@@ -274,6 +282,19 @@ The local SDK demo script runs the full tool loop:
 ```bash
 SUBCONSCIOUS_API_KEY=sky_... npm run agent:freight
 ```
+
+Two-terminal HITL demo:
+
+```bash
+# Terminal 1
+npm run mock:3pl:hitl
+
+# Terminal 2
+set -a; . ./.dev.vars; set +a
+npm run agent:freight
+```
+
+Add `SLACK_WEBHOOK_URL` to `.dev.vars` to send the Block Kit message to a real Slack App incoming webhook. Without it, the script prints the Slack payload locally and logs `Waiting for human approval...`.
 
 ### Baseten baseline
 

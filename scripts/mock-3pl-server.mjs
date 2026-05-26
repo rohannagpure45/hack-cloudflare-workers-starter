@@ -2,11 +2,35 @@ import express from "express";
 
 const app = express();
 const port = Number.parseInt(process.env.MOCK_3PL_PORT ?? "3000", 10);
+const quoteScenario = readQuoteScenario(process.env.MOCK_3PL_SCENARIO);
+
+const scenarioQuotes = {
+  auto: {
+    XPO: { quote_price: 1359, estimated_transit_hours: 35 },
+    Coyote: { quote_price: 1448, estimated_transit_hours: 41 },
+  },
+  hitl: {
+    XPO: { quote_price: 1640, estimated_transit_hours: 34 },
+    Coyote: { quote_price: 1725, estimated_transit_hours: 30 },
+  },
+};
 
 app.use(express.json());
 
 function randomInteger(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function readQuoteScenario(value) {
+  const scenario = value?.trim().toLowerCase() || "random";
+  if (["random", "auto", "hitl"].includes(scenario)) {
+    return scenario;
+  }
+
+  console.warn(
+    `[3PL] Unknown MOCK_3PL_SCENARIO "${value}", falling back to random quotes`,
+  );
+  return "random";
 }
 
 function readLaneRequest(req, res) {
@@ -29,13 +53,17 @@ function readLaneRequest(req, res) {
 }
 
 function buildQuote(carrier, lane) {
+  const fixedQuote = scenarioQuotes[quoteScenario]?.[carrier];
+
   return {
     carrier,
     origin: lane.origin,
     destination: lane.destination,
-    quote_price: randomInteger(1200, 1800),
-    estimated_transit_hours: randomInteger(24, 48),
+    quote_price: fixedQuote?.quote_price ?? randomInteger(1200, 1800),
+    estimated_transit_hours:
+      fixedQuote?.estimated_transit_hours ?? randomInteger(24, 48),
     currency: "USD",
+    scenario: quoteScenario,
     quote_id: `${carrier.toLowerCase()}-${Date.now()}-${randomInteger(1000, 9999)}`,
   };
 }
@@ -71,6 +99,7 @@ app.use((err, _req, res, _next) => {
 
 app.listen(port, () => {
   console.log(`=== [3PL] Mock 3PL environment listening on http://localhost:${port} ===`);
+  console.log(`[3PL] Quote scenario: ${quoteScenario}`);
   console.log("[3PL] POST /api/3pl/xpo    { origin, destination }");
   console.log("[3PL] POST /api/3pl/coyote { origin, destination }");
 });

@@ -28,6 +28,18 @@ const SPOT_RATE_THRESHOLD_USD = 1500;
 const DEFAULT_MOCK_3PL_BASE_URL = "http://localhost:3000";
 const DEFAULT_APPROVAL_BASE_URL = "https://my-worker.workers.dev";
 
+function approvalActionUrl(
+  approvalBaseUrl: string,
+  action: "approve" | "reject",
+  laneId?: string,
+): string {
+  const url = new URL(`/${action}`, approvalBaseUrl.replace(/\/$/, "") + "/");
+  if (laneId) {
+    url.searchParams.set("lane_id", laneId);
+  }
+  return url.toString();
+}
+
 function readNodeEnv(name: string): string | undefined {
   const processLike = (globalThis as {
     process?: { env?: Record<string, string | undefined> };
@@ -35,24 +47,31 @@ function readNodeEnv(name: string): string | undefined {
   return processLike?.env?.[name];
 }
 
+function cleanToolString(value: string): string {
+  return value.replace(/<\/?\s*parameter\s*>/gi, "").trim();
+}
+
 function requireString(args: Record<string, unknown>, key: string): string {
   const value = args[key];
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error(`${key} is required and must be a non-empty string`);
   }
-  return value.trim();
+  return cleanToolString(value);
 }
 
 function optionalString(args: Record<string, unknown>, key: string): string | undefined {
   const value = args[key];
-  return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
+  return typeof value === "string" && cleanToolString(value).length > 0
+    ? cleanToolString(value)
     : undefined;
 }
 
 function requireFiniteNumber(args: Record<string, unknown>, key: string): number {
   const raw = args[key];
-  const value = typeof raw === "number" ? raw : Number(raw);
+  const value =
+    typeof raw === "number"
+      ? raw
+      : Number(cleanToolString(String(raw)).replace(/[$,]/g, ""));
   if (!Number.isFinite(value)) {
     throw new Error(`${key} is required and must be a finite number`);
   }
@@ -154,13 +173,21 @@ function buildSlackApprovalPayload(input: {
             type: "button",
             text: { type: "plain_text", text: "Approve", emoji: true },
             style: "primary",
-            url: `${input.approvalBaseUrl}/approve`,
+            url: approvalActionUrl(
+              input.approvalBaseUrl,
+              "approve",
+              input.laneId,
+            ),
           },
           {
             type: "button",
             text: { type: "plain_text", text: "Reject", emoji: true },
             style: "danger",
-            url: `${input.approvalBaseUrl}/reject`,
+            url: approvalActionUrl(
+              input.approvalBaseUrl,
+              "reject",
+              input.laneId,
+            ),
           },
         ],
       },
@@ -297,8 +324,8 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
         sent: Boolean(webhookUrl),
         waiting_for_human_approval: true,
         approval_urls: {
-          approve: `${approvalBaseUrl}/approve`,
-          reject: `${approvalBaseUrl}/reject`,
+          approve: approvalActionUrl(approvalBaseUrl, "approve", laneId),
+          reject: approvalActionUrl(approvalBaseUrl, "reject", laneId),
         },
         slack_payload: webhookUrl ? undefined : payload,
       };

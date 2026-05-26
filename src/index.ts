@@ -8,6 +8,7 @@ import {
   saveAgentConfig,
 } from "./agent/store";
 import { TOOL_REGISTRY } from "./agent/tools";
+import { handleApprovalAction } from "./freight/approval";
 import {
   parseDroppedLanePayload,
   processDroppedLane,
@@ -133,6 +134,9 @@ app.post("/webhook/dropped-lane", async (c) => {
     200,
   );
 });
+
+app.get("/approve", (c) => handleApprovalAction(c, "approved"));
+app.get("/reject", (c) => handleApprovalAction(c, "rejected"));
 
 async function handleScheduled(env: Env): Promise<void> {
   const config = await getAgentConfig(env.AGENT_KV);
