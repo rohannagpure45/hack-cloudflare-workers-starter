@@ -246,6 +246,28 @@ For this hackathon build, prioritize these pieces in order:
 5. Slack App webhook message for the operator-facing output.
 6. HITL approval callback for above-threshold spend.
 
+### Mock 3PL environment
+
+Run the local Express server in a separate terminal when developing the freight quote tools:
+
+```bash
+npm run mock:3pl
+```
+
+It exposes two dummy freight broker endpoints:
+
+```bash
+curl -s -X POST http://localhost:3000/api/3pl/xpo \
+  -H "Content-Type: application/json" \
+  -d '{ "origin": "27513", "destination": "07001" }'
+
+curl -s -X POST http://localhost:3000/api/3pl/coyote \
+  -H "Content-Type: application/json" \
+  -d '{ "origin": "27513", "destination": "07001" }'
+```
+
+Each response includes a randomized `quote_price` from `$1200` to `$1800` and `estimated_transit_hours` from `24` to `48`. The next agent slice should wrap these endpoints as Subconscious tools.
+
 ### 1. Trigger — when does it run?
 
 | Trigger | When to use | How |

@@ -16,7 +16,7 @@ See also: [AGENTS.md](../AGENTS.md), [INTEGRATION.md](./INTEGRATION.md).
 | Starter agent tools | **Done** | `get_time`, `log_note`, `search_catalog`, `fetch_url` |
 | Generic API + webhook | **Done** | `/api/*`, `POST /api/webhook` |
 | Dropped-lane telemetry trigger | **Done** | `POST /webhook/dropped-lane`, `waitUntil`, demo logs |
-| Mock 3PL quote tools | **Not started** | XPO, Coyote |
+| Mock 3PL environment | **Partial** | Local Express server for XPO/Coyote exists; agent tools not wired yet |
 | Baseten baseline tool | **Not started** | Config exists; not wired to agent |
 | Freight agent prompt + tool enablement | **Partial** | Instructions in dropped-lane only; default config still shopping-oriented |
 | Slack HITL message | **Not started** | Env placeholders in `.dev.vars.example` only |
@@ -69,7 +69,7 @@ flowchart LR
 
 | Priority | Item | Target files | Acceptance criteria |
 |----------|------|--------------|---------------------|
-| **P1** | Mock 3PL quote tools (XPO, Coyote) | `src/agent/tools.ts`, optional `src/freight/providers/` | Tools return `{ carrier, rate_usd, transit_hours }`; deterministic mocks keyed by origin/dest zips |
+| **P1** | Mock 3PL quote tools (XPO, Coyote) | `scripts/mock-3pl-server.mjs`, `src/agent/tools.ts`, optional `src/freight/providers/` | Local Express endpoints return `{ carrier, quote_price, estimated_transit_hours }`; agent tools call the endpoints |
 | **P2** | Baseten baseline tool | `src/agent/tools.ts`, optional `src/baseten/baseline.ts` | Fair-market USD baseline; real Baseten if `BASETEN_API_KEY` + model ID set, else sprint-safe mock |
 | **P3** | Freight agent config | `src/types.ts` `DEFAULT_AGENT_CONFIG`, `src/agent/prompt.ts` | Enable freight tools; system prompt describes **10%** auto-book / **~20%** HITL escalation |
 | **P4** | Slack operator message | e.g. `src/slack/notify.ts` | Incoming webhook payload: lane, carrier, quote, baseline, % over baseline, delivery guarantee, rationale, approve/reject actions |
@@ -121,6 +121,7 @@ If `WEBHOOK_SECRET` is set in `.dev.vars`, add `-H "x-webhook-secret: <secret>"`
 
 ### Future (when built)
 
+- [x] Local mock 3PL server returns XPO and Coyote spot quotes
 - [ ] Agent calls mock 3PL tools and baseline tool in one dropped-lane run
 - [ ] Slack message visible with approve/reject actions
 - [ ] Approve/reject callback completes or cancels booking with logged outcome

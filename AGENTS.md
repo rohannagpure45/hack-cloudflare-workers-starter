@@ -93,6 +93,7 @@ Track 1 shopping assistant: `examples/shopping-assistant/` — run with `bash ex
 | Agent loop | `src/agent/loop.ts` |
 | Default prompts / config | `src/types.ts` |
 | Add tools (main hackathon work) | `src/agent/tools.ts` |
+| Local mock 3PL server | `scripts/mock-3pl-server.mjs` |
 | New routes or triggers | `src/index.ts` |
 | Cron schedule | `wrangler.toml` |
 | Baseten Qwen deployment config | `qwen-3-4b-instruct-2507/config.yaml` |
@@ -111,6 +112,16 @@ Track 1 shopping assistant: `examples/shopping-assistant/` — run with `bash ex
 - `GET /api/runs` — history
 
 Full route spec: [docs/INTEGRATION.md](docs/INTEGRATION.md).
+
+## Mock 3PL environment
+
+Run the local Express quote server separately from Wrangler:
+
+```bash
+npm run mock:3pl
+```
+
+It exposes `POST /api/3pl/xpo` and `POST /api/3pl/coyote` on `http://localhost:3000`. Both accept `{ "origin": "27513", "destination": "07001" }` and return randomized `quote_price` and `estimated_transit_hours` fields for demo spot-market quotes.
 
 ## Subconscious
 

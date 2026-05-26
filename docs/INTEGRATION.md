@@ -75,6 +75,7 @@ sequenceDiagram
 | [`src/index.ts`](../src/index.ts) | Hono routes — **add new routes before** `app.all("*", ...)` |
 | [`src/freight/dropped-lane.ts`](../src/freight/dropped-lane.ts) | Dropped-lane parse, instructions, background processor |
 | [`src/agent/tools.ts`](../src/agent/tools.ts) | `TOOL_REGISTRY` — register new freight tools here |
+| [`scripts/mock-3pl-server.mjs`](../scripts/mock-3pl-server.mjs) | Local Express mock 3PL environment for XPO and Coyote quote endpoints |
 | [`src/agent/store.ts`](../src/agent/store.ts) | `executeAgentRun`, config/runs in KV |
 | [`src/agent/loop.ts`](../src/agent/loop.ts) | ReAct loop |
 | [`src/types.ts`](../src/types.ts) | `Env`, `AgentConfig`, `AgentRunRecord`, `DEFAULT_AGENT_CONFIG` |
@@ -236,11 +237,40 @@ Full API patterns: [`.agents/skills/subconscious-dev/SKILL.md`](../.agents/skill
 
 ### Mock 3PL quotes
 
-Implement as **agent tools** (not separate public routes unless needed for realism):
+Local dummy environment is available as a standalone Express server:
+
+```bash
+npm run mock:3pl
+```
+
+It listens on `http://localhost:3000` by default. Set `MOCK_3PL_PORT=3001` to use a different port.
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| POST | `/api/3pl/xpo` | `{ "origin": "27513", "destination": "07001" }` | `{ carrier, origin, destination, quote_price, estimated_transit_hours, currency, quote_id }` |
+| POST | `/api/3pl/coyote` | `{ "origin": "27513", "destination": "07001" }` | `{ carrier, origin, destination, quote_price, estimated_transit_hours, currency, quote_id }` |
+
+Quotes are randomized for the demo:
+
+- `quote_price`: integer from `$1200` to `$1800`
+- `estimated_transit_hours`: integer from `24` to `48`
+
+Verify locally:
+
+```bash
+curl -s -X POST http://localhost:3000/api/3pl/xpo \
+  -H "Content-Type: application/json" \
+  -d '{ "origin": "27513", "destination": "07001" }'
+
+curl -s -X POST http://localhost:3000/api/3pl/coyote \
+  -H "Content-Type: application/json" \
+  -d '{ "origin": "27513", "destination": "07001" }'
+```
+
+Next, expose these calls as **agent tools**:
 
 - Suggested names: `quote_xpo`, `quote_coyote`
-- Return shape: `{ carrier: "XPO" | "Coyote", rate_usd: number, transit_hours: number }`
-- Deterministic mocks from `origin_zip` + `dest_zip` (and optionally `weight_lbs`) so demos are repeatable
+- Tool return shape can normalize the server response to `{ carrier: "XPO" | "Coyote", rate_usd: number, transit_hours: number }`
 - Log with `[3PL]` prefix
 
 ### Baseten baseline
