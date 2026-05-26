@@ -416,6 +416,11 @@ const toolHandlers = {
   request_human_approval: requestHumanApproval,
 };
 
+const slackNotificationTools = new Set([
+  "notify_lane_recovery",
+  "request_human_approval",
+]);
+
 function parseToolArguments(raw) {
   if (!raw) return {};
   return JSON.parse(raw);
@@ -472,6 +477,7 @@ Recover the lane now.`,
 
   let forcedTool = null;
   let lastQuoteResult = null;
+  let slackNotificationSent = false;
 
   for (let round = 1; round <= 6; round++) {
     const response = await client.chat.completions.create({
@@ -501,13 +507,29 @@ Recover the lane now.`,
 
     for (const toolCall of message.tool_calls) {
       const name = toolCall.function.name;
+      const isSlackNotificationTool = slackNotificationTools.has(name);
       const handler = toolHandlers[name];
       if (!handler) {
         throw new Error(`No local handler registered for tool: ${name}`);
       }
 
+      if (isSlackNotificationTool && slackNotificationSent) {
+        console.log(
+          `[agent] Skipping duplicate Slack notification tool call: ${name}`,
+        );
+        messages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: JSON.stringify({
+            skipped: true,
+            reason: "Slack notification already sent for this recovery run.",
+          }),
+        });
+        continue;
+      }
+
       let args = parseToolArguments(toolCall.function.arguments);
-      if (name === "request_human_approval" || name === "notify_lane_recovery") {
+      if (isSlackNotificationTool) {
         args = {
           ...args,
           ...buildBestQuoteToolArgs(lastQuoteResult),
@@ -523,7 +545,8 @@ Recover the lane now.`,
           : "notify_lane_recovery";
       }
 
-      if (name === "request_human_approval" || name === "notify_lane_recovery") {
+      if (isSlackNotificationTool) {
+        slackNotificationSent = true;
         forcedTool = null;
       }
 
@@ -532,6 +555,20 @@ Recover the lane now.`,
         tool_call_id: toolCall.id,
         content: JSON.stringify(result),
       });
+
+      if (isSlackNotificationTool) {
+        console.log("\n[agent] Final answer:");
+        if (name === "request_human_approval") {
+          console.log(
+            "Human override requested in Slack. Waiting for manager approval before booking.",
+          );
+        } else {
+          console.log(
+            "Lane recovered within policy. Autonomous booking notification sent to Slack.",
+          );
+        }
+        return;
+      }
     }
   }
 

@@ -42,6 +42,11 @@ interface AgentResponse {
   content?: string;
 }
 
+const SLACK_NOTIFICATION_TOOLS = new Set([
+  "notify_lane_recovery",
+  "request_human_approval",
+]);
+
 export interface LoopStep {
   type: "tool_call" | "tool_result" | "final_answer";
   tool?: string;
@@ -84,6 +89,7 @@ export async function runAgentLoop(input: RunLoopInput): Promise<RunLoopResult> 
 
   const steps: LoopStep[] = [];
   const toolCalls: RunLoopResult["toolCalls"] = [];
+  let slackNotificationSent = false;
 
   for (let step = 0; step < maxSteps; step++) {
     const response = await chat.completions.create({
@@ -104,6 +110,14 @@ export async function runAgentLoop(input: RunLoopInput): Promise<RunLoopResult> 
 
     const toolName = parsed.tool ?? "";
     const args = parsed.arguments ?? {};
+
+    if (SLACK_NOTIFICATION_TOOLS.has(toolName) && slackNotificationSent) {
+      const content =
+        "Slack notification already sent for this recovery run. No duplicate notification was posted.";
+      steps.push({ type: "final_answer", content });
+      return { answer: content, steps, toolCalls };
+    }
+
     steps.push({ type: "tool_call", tool: toolName, arguments: args });
 
     messages.push({ role: "assistant", content: raw });
@@ -115,11 +129,25 @@ export async function runAgentLoop(input: RunLoopInput): Promise<RunLoopResult> 
         arguments: JSON.stringify(args),
         result,
       });
-      steps.push({ type: "tool_result", tool: toolName, result: JSON.parse(result) });
+      const parsedResult = JSON.parse(result);
+      steps.push({ type: "tool_result", tool: toolName, result: parsedResult });
       messages.push({
         role: "user",
         content: `Tool "${toolName}" returned:\n${result}`,
       });
+
+      if (
+        SLACK_NOTIFICATION_TOOLS.has(toolName) &&
+        !("error" in parsedResult)
+      ) {
+        slackNotificationSent = true;
+        const content =
+          toolName === "request_human_approval"
+            ? "Human override requested in Slack. Waiting for manager approval before booking."
+            : "Lane recovered within policy. Autonomous booking notification sent to Slack.";
+        steps.push({ type: "final_answer", content });
+        return { answer: content, steps, toolCalls };
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       steps.push({ type: "tool_result", tool: toolName, result: { error: message } });
